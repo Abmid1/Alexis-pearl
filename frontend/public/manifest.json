@@ -1,0 +1,11 @@
+{
+  "name": "Alexis Pearl CRM",
+  "short_name": "Alexis Pearl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0E0E11",
+  "theme_color": "#1D9E75",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
