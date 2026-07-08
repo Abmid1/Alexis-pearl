@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "dev": "nodemon",
     "seed": "node scripts/seed.js"
   },
   "dependencies": {
@@ -16,5 +16,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }
