@@ -29,6 +29,7 @@ const del = (path: string) => req(path, { method: 'DELETE' });
 
 export const api = {
   login: (email: string, password: string) => post('/api/auth/login', { email, password }),
+  changePassword: (currentPassword: string, newPassword: string) => post('/api/auth/change-password', { currentPassword, newPassword }),
 
   dashboard: () => req('/api/dashboard'),
 
@@ -114,6 +115,7 @@ export const api = {
     addClient: (b: any) => post('/api/clients', b),
     invite: (id: string) => post(`/api/clients/${id}/invite`),
     team: () => req('/api/team'),
+    addTeamMember: (b: any) => post('/api/team', b),
     units: () => req('/api/units'),
     addUnit: (b: any) => post('/api/units', b),
   },

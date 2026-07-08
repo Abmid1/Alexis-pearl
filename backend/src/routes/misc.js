@@ -53,10 +53,28 @@ router.post('/clients/:id/invite', roles(...MANAGERS), async (req, res) => {
   res.json({ ok: true, email: client.email, password: pwd });
 });
 
-/** Team list (for split pickers / reassignment). */
+const STAFF_ROLES = ['owner', 'admin', 'agent', 'marketing'];
+
+/** Team list (for split pickers / reassignment, and the team management screen). */
 router.get('/team', async (req, res) => {
-  const { data } = await db.from('users').select('id,name,role').in('role', ['owner', 'admin', 'agent', 'marketing']).eq('active', true);
+  const { data } = await db.from('users').select('id,name,role,email,active').in('role', STAFF_ROLES).eq('active', true);
   res.json(data || []);
+});
+
+/** Add a staff member — owner/admin only. */
+router.post('/team', roles(...MANAGERS), async (req, res) => {
+  const { name, email, phone, role, password } = req.body || {};
+  if (!name || !email || !role) return res.status(400).json({ error: 'name, email and role required' });
+  if (!STAFF_ROLES.includes(role)) return res.status(400).json({ error: `role must be one of ${STAFF_ROLES.join(', ')}` });
+
+  const pwd = password || Math.random().toString(36).slice(2, 10);
+  const { data: user, error } = await db.from('users').insert({
+    name, email: email.toLowerCase().trim(), phone: phone || null, role,
+    password_hash: await bcrypt.hash(pwd, 10),
+  }).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  await audit(req.user, 'added_team_member', 'user', user.id, { name, role });
+  res.json({ ok: true, email: user.email, password: pwd });
 });
 
 /** Units for a property (plan / construction pickers). */

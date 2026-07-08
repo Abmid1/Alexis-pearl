@@ -15,6 +15,8 @@ const NAV = [
   { href: '/reports',   id: '1h', label: 'Reports',        icon: '📈', roles: ['owner', 'admin', 'agent', 'marketing'] },
   { href: '/kb',        id: '1i', label: 'Knowledge Base', icon: '🧠', roles: ['owner', 'admin', 'agent', 'marketing'] },
   { href: '/pm',        id: '1j', label: 'Property Mgmt',  icon: '🏢', roles: ['owner', 'admin'] },
+  { href: '/clients',   id: '',   label: 'Clients',        icon: '👤', roles: ['owner', 'admin'] },
+  { href: '/team',      id: '',   label: 'Team',            icon: '🧑‍💼', roles: ['owner', 'admin'] },
   { href: '/audit',     id: '',   label: 'Audit Log',      icon: '☰',  roles: ['owner', 'admin'] },
 ];
 
@@ -38,6 +40,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const [alerts, setAlerts] = useState<{ inbox: number; approvals: number }>({ inbox: 0, approvals: 0 });
+  const [showChangePw, setShowChangePw] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -84,12 +87,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.role}</div>
               </div>
             </div>
-            <button className="btn btn-sm" onClick={() => { authStore.clear(); window.location.href = '/login'; }}>Out</button>
+            <div className="row" style={{ gap: 4 }}>
+              <button className="btn btn-sm" onClick={() => setShowChangePw(true)} title="Change password">🔑</button>
+              <button className="btn btn-sm" onClick={() => { authStore.clear(); window.location.href = '/login'; }}>Out</button>
+            </div>
           </div>
         </div>
       </aside>
 
       <main className="main">{children}</main>
+
+      {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
 
       {/* Mobile bottom tabs — the team works from phones */}
       <nav className="bottom-nav">
@@ -117,6 +125,40 @@ export function ScreenHead({ id, title, phase, children }: { id: string; title: 
       {phase && <span className="phase-chip">Phase {phase}</span>}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>{children}</div>
     </div>
+  );
+}
+
+export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr('');
+    if (newPassword !== confirm) { setErr('New passwords do not match'); return; }
+    setBusy(true);
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      onClose();
+    } catch (e: any) { setErr(e.message || 'Failed to update password'); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title="Change password" onClose={onClose}>
+      <form onSubmit={submit}>
+        <div className="form-group"><label className="form-label">Current password</label>
+          <input className="form-input" type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} /></div>
+        <div className="form-group"><label className="form-label">New password</label>
+          <input className="form-input" type="password" required minLength={6} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></div>
+        <div className="form-group"><label className="form-label">Confirm new password</label>
+          <input className="form-input" type="password" required minLength={6} value={confirm} onChange={(e) => setConfirm(e.target.value)} /></div>
+        {err && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{err}</div>}
+        <button className="btn btn-green btn-block" disabled={busy}>{busy ? 'Updating…' : 'Update password'}</button>
+      </form>
+    </Modal>
   );
 }
 

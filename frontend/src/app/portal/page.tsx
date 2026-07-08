@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { api, authStore } from '@/lib/api';
-import { fmtGHS, timeAgo } from '@/components/Shell';
+import { fmtGHS, timeAgo, ChangePasswordModal } from '@/components/Shell';
 
 export default function Portal() {
   const [user, setUser] = useState<any>(undefined);
@@ -11,6 +11,7 @@ export default function Portal() {
   const [tab, setTab] = useState<'plan' | 'docs' | 'chat'>('plan');
   const [paying, setPaying] = useState<string | null>(null);
   const [paidFlash, setPaidFlash] = useState('');
+  const [showChangePw, setShowChangePw] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,8 +60,13 @@ export default function Portal() {
             <div className="muted" style={{ fontSize: 11 }}>Client portal · <span className="id-badge" style={{ fontSize: 9 }}>1k</span></div>
           </div>
         </div>
-        <button className="btn btn-sm" onClick={() => { authStore.clear(); window.location.href = '/login'; }}>Sign out</button>
+        <div className="row" style={{ gap: 6 }}>
+          <button className="btn btn-sm" onClick={() => setShowChangePw(true)}>Change password</button>
+          <button className="btn btn-sm" onClick={() => { authStore.clear(); window.location.href = '/login'; }}>Sign out</button>
+        </div>
       </div>
+
+      {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
 
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Welcome, {data.client.name.split(' ')[0]} 👋</div>
 

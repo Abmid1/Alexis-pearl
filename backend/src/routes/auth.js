@@ -21,4 +21,18 @@ router.get('/me', auth, async (req, res) => {
   res.json({ user: req.user });
 });
 
+router.post('/change-password', auth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword required' });
+  if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  const { data: user } = await db.from('users').select('*').eq('id', req.user.id).single();
+  if (!user) return res.status(401).json({ error: 'Invalid session' });
+  const ok = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
+  const { error } = await db.from('users').update({ password_hash: await bcrypt.hash(newPassword, 10) }).eq('id', user.id);
+  if (error) return res.status(500).json({ error: error.message });
+  await audit(user, 'changed_password', 'user', user.id);
+  res.json({ ok: true });
+});
+
 export default router;
