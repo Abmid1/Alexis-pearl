@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api, authStore } from '@/lib/api';
 import { ScreenHead, fmtGHS, timeAgo } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
 export default function Reports() {
   const user = typeof window !== 'undefined' ? authStore.getUser() : null;
@@ -29,7 +30,7 @@ export default function Reports() {
             const run = await api.reports.sendNow();
             setSendMsg(`Sent to ${run.sent_to?.length || 0} recipients`);
             load();
-          }}>📤 Send digest now</button>
+          }}><I name="send" size={13} /> Send digest now</button>
         )}
       </ScreenHead>
       <div className="muted" style={{ marginBottom: 14 }}>
@@ -65,7 +66,9 @@ export default function Reports() {
           {r.leaderboard.map((a: any, i: number) => (
             <div key={a.agentId} className="spread" style={{ padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
               <div className="row">
-                <span style={{ fontSize: 15 }}>{['🥇', '🥈', '🥉'][i] || '·'}</span>
+                <span style={{ width: 22, height: 22, borderRadius: '50%', background: i === 0 ? '#FDF3E1' : 'var(--bg-elevated)', color: i === 0 ? '#A67A2D' : 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                  {i === 0 ? <I name="award" size={12} /> : i + 1}
+                </span>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{a.agent}</div>
                   <div className="muted">{a.leads} leads · {a.won} won</div>

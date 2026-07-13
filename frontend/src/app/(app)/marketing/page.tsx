@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api, authStore } from '@/lib/api';
 import { ScreenHead, Modal, fmtGHS } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
 const LSTATUS: Record<string, [string, string]> = {
   draft: ['t-gray', 'Draft'], pending_approval: ['t-amber', 'Awaiting approval'],
@@ -40,7 +41,7 @@ export default function Marketing() {
   return (
     <div>
       <ScreenHead id="1e" title="Marketing" phase={2}>
-        {canEdit && <button className="btn" onClick={() => setShowBroadcast(true)}>📢 Broadcast</button>}
+        {canEdit && <button className="btn" onClick={() => setShowBroadcast(true)}><I name="megaphone" size={13} /> Broadcast</button>}
         {canEdit && <button className="btn" onClick={() => setShowCampaign(true)}>+ Campaign</button>}
         {canEdit && <button className="btn btn-green" onClick={() => setShowListing(true)}>+ Listing</button>}
       </ScreenHead>
@@ -76,17 +77,17 @@ export default function Marketing() {
                 <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.title}</div>
                 <span className={`tag ${cls}`}>{label}</span>
               </div>
-              <div className="muted" style={{ marginBottom: 6 }}>📍 {p.location} · {fmtGHS(p.price)}{p.ptype === 'rent' ? '/mo' : ''}</div>
+              <div className="muted row" style={{ marginBottom: 6, gap: 4 }}><I name="pin" size={11} /> {p.location} · {fmtGHS(p.price)}{p.ptype === 'rent' ? '/mo' : ''}</div>
               {p.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 10 }}>{p.description.slice(0, 140)}{p.description.length > 140 ? '…' : ''}</div>}
               {p.lat && p.lng && (
                 <a className="muted" style={{ display: 'block', marginBottom: 10, color: 'var(--blue)' }} target="_blank"
-                  href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}>🗺 View on Google Maps</a>
+                  href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}><I name="pin" size={11} style={{ verticalAlign: '-1px', marginRight: 3 }} />View on Google Maps</a>
               )}
               <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                {canEdit && <button className="btn btn-sm" onClick={() => generate(p)}>🤖 AI copy</button>}
+                {canEdit && <button className="btn btn-sm" onClick={() => generate(p)}><I name="sparkle" size={12} /> AI copy</button>}
                 {isManager && p.listing_status === 'pending_approval' && (
                   <>
-                    <button className="btn btn-sm btn-green" onClick={async () => { await api.marketing.approveListing(p.id); load(); }}>✓ Approve & publish</button>
+                    <button className="btn btn-sm btn-green" onClick={async () => { await api.marketing.approveListing(p.id); load(); }}><I name="check" size={12} /> Approve & publish</button>
                     <button className="btn btn-sm btn-red" onClick={async () => { await api.marketing.rejectListing(p.id); load(); }}>Reject</button>
                   </>
                 )}
@@ -109,7 +110,7 @@ export default function Marketing() {
                   await api.marketing.useCopy(copyFor.id, copyText);
                   setCopyFor(null); load();
                 }}>Use it → submit for approval</button>
-                <button className="btn" onClick={() => generate(copyFor)}>↻ Regenerate</button>
+                <button className="btn" onClick={() => generate(copyFor)}><I name="refresh" size={13} /> Regenerate</button>
               </div>
             </>
           )}
@@ -172,7 +173,7 @@ export default function Marketing() {
         <Modal title="Bulk campaign message" onClose={() => { setShowBroadcast(false); setBcResult(null); }}>
           {bcResult !== null ? (
             <div style={{ textAlign: 'center', padding: 16 }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+              <div style={{ marginBottom: 8 }}><I name="check" size={30} style={{ color: 'var(--green)' }} /></div>
               <div style={{ fontWeight: 700, marginBottom: 4 }}>Sent to {bcResult} lead{bcResult === 1 ? '' : 's'}</div>
               <div className="muted">Check the Outbox in Audit Log to inspect each message.</div>
             </div>

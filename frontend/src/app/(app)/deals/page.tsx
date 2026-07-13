@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api, authStore } from '@/lib/api';
 import { ScreenHead, Modal, fmtGHS } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
 const STATUS_TAG: Record<string, [string, string]> = {
   draft: ['t-gray', 'Draft'],
@@ -90,14 +91,14 @@ export default function Deals() {
 
               {d.status === 'changes_requested' && d.change_note && (
                 <div style={{ fontSize: 12, color: 'var(--red)', background: 'rgba(248,113,113,0.07)', borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
-                  ↩ {d.change_note}
+                  <I name="alert" size={12} style={{ marginRight: 4, verticalAlign: '-2px' }} />{d.change_note}
                 </div>
               )}
 
               <div className="row" style={{ gap: 8 }}>
                 {isManager && d.status === 'pending_approval' && (
                   <>
-                    <button className="btn btn-sm btn-green" onClick={async () => { await api.deals.approve(d.id); load(); }}>✓ Approve</button>
+                    <button className="btn btn-sm btn-green" onClick={async () => { await api.deals.approve(d.id); load(); }}><I name="check" size={13} /> Approve</button>
                     <button className="btn btn-sm" onClick={() => { setChangeFor(d); setChangeNote(''); }}>Request changes</button>
                   </>
                 )}

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api, authStore } from '@/lib/api';
 import { ScreenHead, Modal, fmtGHS } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
 function fileToDataUrl(f: File): Promise<string> {
   return new Promise((res, rej) => {
@@ -37,7 +38,7 @@ export default function Plans() {
     <div>
       <ScreenHead id="1g" title="Payment Plans" phase={2}>
         <button className="btn" onClick={async () => { const r = await api.plans.sendReminders(); setRemindResult(r.sent); }}>
-          🔔 Send reminders{remindResult !== null ? ` — ${remindResult} sent` : ''}
+          <I name="bell" size={13} /> Send reminders{remindResult !== null ? ` — ${remindResult} sent` : ''}
         </button>
         {isManager && <button className="btn btn-green" onClick={() => setShowCreate(true)}>+ New plan</button>}
       </ScreenHead>
@@ -73,7 +74,7 @@ export default function Plans() {
               {p.unit && (
                 <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
                   <div className="spread" style={{ marginBottom: 4 }}>
-                    <span style={{ fontSize: 11.5, fontWeight: 600 }}>🏗 {p.unit.name} — {p.unit.completion_pct}% built</span>
+                    <span className="row" style={{ fontSize: 11.5, fontWeight: 600, gap: 4 }}><I name="crane" size={12} /> {p.unit.name} — {p.unit.completion_pct}% built</span>
                     {p.unit.handover_date && <span className="muted">handover {p.unit.handover_date}</span>}
                   </div>
                   <div className="progress" style={{ height: 5 }}><div style={{ width: `${p.unit.completion_pct}%` }} /></div>

@@ -2,8 +2,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { ScreenHead, Modal, timeAgo } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
-const CH_ICON: Record<string, string> = { whatsapp: '🟢', sms: '✉️', email: '📧', webchat: '🌐', instagram: '📸', tiktok: '🎵', x: '𝕏', call: '📞' };
+const CH_ICON: Record<string, string> = { whatsapp: 'messageCircle', sms: 'chat', email: 'mail', webchat: 'globe', instagram: 'instagram', tiktok: 'music', x: 'x', call: 'phone' };
+const CH_COLOR: Record<string, string> = { whatsapp: '#25D366', sms: 'var(--teal)', email: 'var(--purple)', webchat: 'var(--teal)', instagram: '#E1306C', tiktok: 'var(--text-primary)', x: 'var(--text-primary)', call: 'var(--green)' };
+const ChannelIcon = ({ ch, size = 14 }: { ch: string; size?: number }) => (
+  <I name={CH_ICON[ch] || 'chat'} size={size} style={{ color: CH_COLOR[ch] || 'var(--text-secondary)' }} />
+);
 
 export default function Inbox() {
   const [convs, setConvs] = useState<any[]>([]);
@@ -53,18 +58,18 @@ export default function Inbox() {
   return (
     <div>
       <ScreenHead id="1d" title="Unified Inbox" phase={1}>
-        <button className="btn" onClick={() => setShowSim(true)}>⚡ Simulate inbound</button>
+        <button className="btn" onClick={() => setShowSim(true)}><I name="zap" size={13} /> Simulate inbound</button>
       </ScreenHead>
 
       <div style={{ display: 'flex', gap: 12, height: 'calc(100vh - 170px)', minHeight: 420 }}>
         {/* List */}
         <div style={{ width: 300, flexShrink: 0, overflowY: 'auto', display: active && typeof window !== 'undefined' && window.innerWidth < 861 ? 'none' : 'flex', flexDirection: 'column', gap: 8 }}>
           {convs.map((c) => (
-            <button key={c.id} className="card" style={{ textAlign: 'left', cursor: 'pointer', padding: 12, borderColor: active?.id === c.id ? 'var(--green)' : undefined, width: '100%' }}
+            <button key={c.id} className="card" style={{ textAlign: 'left', cursor: 'pointer', padding: 12, borderColor: active?.id === c.id ? 'var(--teal)' : undefined, width: '100%' }}
               onClick={() => openConv(c.id)}>
               <div className="spread" style={{ marginBottom: 4 }}>
                 <div className="row" style={{ minWidth: 0 }}>
-                  <span>{CH_ICON[c.channel]}</span>
+                  <ChannelIcon ch={c.channel} />
                   <strong style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.contact_name}</strong>
                   {c.unread && <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)', flexShrink: 0 }} />}
                 </div>
@@ -74,7 +79,7 @@ export default function Inbox() {
                 {c.lastMessage?.body || '—'}
               </div>
               <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                <span className={`tag ${c.ai_mode === 'auto' ? 't-green' : 't-amber'}`}>{c.ai_mode === 'auto' ? '🟢 Auto' : '🟡 Suggest'}</span>
+                <span className={`tag ${c.ai_mode === 'auto' ? 't-green' : 't-amber'}`}>{c.ai_mode === 'auto' ? 'AI: Auto' : 'AI: Suggest'}</span>
                 {!c.assigned_to && <span className="tag t-red">Unassigned</span>}
                 {c.pendingDrafts > 0 && <span className="tag t-purple">{c.pendingDrafts} draft</span>}
               </div>
@@ -88,8 +93,8 @@ export default function Inbox() {
           <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 0, minWidth: 0 }}>
             <div className="spread" style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: 8 }}>
               <div className="row" style={{ minWidth: 0 }}>
-                <button className="btn btn-sm mobile-only" onClick={() => setActive(null)}>←</button>
-                <span>{CH_ICON[active.channel]}</span>
+                <button className="btn btn-sm mobile-only" onClick={() => setActive(null)}><I name="chevronLeft" size={14} /></button>
+                <ChannelIcon ch={active.channel} size={16} />
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 13.5 }}>{active.contact_name}</div>
                   <div className="muted" style={{ fontSize: 11 }}>
@@ -101,7 +106,7 @@ export default function Inbox() {
               <div className="row">
                 {!active.assigned_to && <button className="btn btn-sm" onClick={async () => { await api.inbox.assign(active.id); refresh(); }}>Assign to me</button>}
                 <button className={`btn btn-sm ${active.ai_mode === 'auto' ? '' : 'btn-green'}`} onClick={toggleMode}>
-                  {active.ai_mode === 'auto' ? '✋ Take over' : '🤖 Return to Auto'}
+                  {active.ai_mode === 'auto' ? <><I name="hand" size={13} /> Take over</> : <><I name="sparkle" size={13} /> Return to Auto</>}
                 </button>
               </div>
             </div>
@@ -111,14 +116,14 @@ export default function Inbox() {
                 <div key={m.id} style={{
                   alignSelf: m.direction === 'in' ? 'flex-start' : 'flex-end',
                   maxWidth: '78%',
-                  background: m.direction === 'in' ? 'var(--bg-elevated)' : (m.sender_type === 'ai' ? 'rgba(52,211,153,0.12)' : 'var(--green)'),
+                  background: m.direction === 'in' ? 'var(--bg-elevated)' : (m.sender_type === 'ai' ? '#E5F5F8' : 'var(--navy)'),
                   color: m.direction === 'out' && m.sender_type !== 'ai' ? '#fff' : 'var(--text-primary)',
                   borderRadius: 12, padding: '9px 12px', fontSize: 13.5, lineHeight: 1.55,
                 }}>
                   {m.body}
                   <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4, display: 'flex', gap: 6 }}>
-                    {m.sender_type === 'ai' && <span style={{ fontWeight: 700 }}>🤖 AI</span>}
-                    {m.kb_source && <span>📎 {m.kb_source}</span>}
+                    {m.sender_type === 'ai' && <span className="row" style={{ fontWeight: 700, gap: 3 }}><I name="sparkle" size={10} /> AI</span>}
+                    {m.kb_source && <span className="row" style={{ gap: 3 }}><I name="paperclip" size={10} /> {m.kb_source}</span>}
                     <span>{timeAgo(m.created_at)}</span>
                   </div>
                 </div>
@@ -127,7 +132,7 @@ export default function Inbox() {
               {/* AI drafts awaiting review */}
               {drafts.map((d: any) => (
                 <div key={d.id} style={{ alignSelf: 'flex-end', maxWidth: '85%', border: '1px dashed var(--amber)', borderRadius: 12, padding: '10px 12px', background: 'rgba(251,191,36,0.05)' }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--amber)', marginBottom: 5 }}>🤖 AI DRAFT — held back for your review{d.kb_source ? ` · 📎 ${d.kb_source}` : ''}</div>
+                  <div className="row" style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--amber)', marginBottom: 5, gap: 4 }}><I name="sparkle" size={11} /> AI DRAFT — held back for your review{d.kb_source ? ` · ${d.kb_source}` : ''}</div>
                   <div style={{ fontSize: 13.5, lineHeight: 1.55, marginBottom: 8 }}>{d.body}</div>
                   <div className="row" style={{ gap: 6 }}>
                     <button className="btn btn-sm btn-green" onClick={async () => { await api.inbox.approveDraft(active.id, d.id); refresh(); }}>Send as-is</button>

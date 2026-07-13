@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { ScreenHead, Modal, fmtGHS, timeAgo } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
 const STAGES = [
   { key: 'new',       label: 'New' },
@@ -74,7 +75,7 @@ export default function Pipeline() {
                   {l.interest && <div className="muted" style={{ marginBottom: 4 }}>{l.interest}</div>}
                   {Number(l.budget) > 0 && <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--green-bright)', marginBottom: 6 }}>{fmtGHS(l.budget)}</div>}
                   <div className="spread">
-                    <span className="muted" style={{ fontSize: 11 }}>◉ {l.owner?.name || 'Unassigned'}</span>
+                    <span className="muted row" style={{ fontSize: 11, gap: 4 }}><I name="user" size={11} /> {l.owner?.name || 'Unassigned'}</span>
                     {l.overdue
                       ? <button className="btn btn-sm btn-red" onClick={() => followUp(l.id)} style={{ animation: 'pulse 2s infinite' }}>Overdue — done?</button>
                       : l.next_follow_up && <span className="muted" style={{ fontSize: 11 }}>next: {new Date(l.next_follow_up).toLocaleDateString()}</span>}
@@ -82,7 +83,7 @@ export default function Pipeline() {
                   {/* mobile: tap to advance since drag is awkward on touch */}
                   <div className="row" style={{ marginTop: 8, gap: 6 }}>
                     {STAGES.filter((x) => x.key !== l.stage).slice(0, 3).map((x) => (
-                      <button key={x.key} className="btn btn-sm" style={{ fontSize: 10.5, minHeight: 26, padding: '3px 8px' }} onClick={() => move(l.id, x.key)}>→ {x.label}</button>
+                      <button key={x.key} className="btn btn-sm" style={{ fontSize: 10.5, minHeight: 26, padding: '3px 8px' }} onClick={() => move(l.id, x.key)}><I name="chevronRight" size={11} /> {x.label}</button>
                     ))}
                   </div>
                 </div>

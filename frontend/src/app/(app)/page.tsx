@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { ScreenHead, fmtGHS, timeAgo } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
 const KIND_ROUTE: Record<string, string> = { deal: '/deals', expense: '/finance', listing: '/marketing', payment: '/finance' };
 const KIND_TAG: Record<string, string> = { deal: 't-green', expense: 't-amber', listing: 't-purple', payment: 't-blue' };
@@ -42,10 +43,10 @@ export default function CommandCenter() {
       </div>
 
       {/* AI daily brief */}
-      <div className="card" style={{ marginBottom: 16, borderColor: 'rgba(52,211,153,0.25)', background: 'linear-gradient(135deg, rgba(52,211,153,0.05), transparent 55%)' }}>
+      <div className="card" style={{ marginBottom: 16, borderColor: '#B7E2EC', background: '#F0F9FB' }}>
         <div className="row" style={{ marginBottom: 8 }}>
-          <span style={{ fontSize: 15 }}>🤖</span>
-          <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--green-bright)' }}>AI daily brief</span>
+          <I name="sparkle" size={15} style={{ color: 'var(--teal)' }} />
+          <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--teal)' }}>AI daily brief</span>
         </div>
         <div style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--text-secondary)' }}>{data.brief}</div>
       </div>
@@ -67,7 +68,7 @@ export default function CommandCenter() {
                 </div>
                 <div className="row" style={{ flexShrink: 0 }}>
                   <span className="muted">{timeAgo(a.created_at)}</span>
-                  <span style={{ color: 'var(--green-bright)', fontWeight: 700 }}>Review →</span>
+                  <span className="row" style={{ color: 'var(--teal)', fontWeight: 600, gap: 3 }}>Review <I name="chevronRight" size={13} /></span>
                 </div>
               </button>
             ))}

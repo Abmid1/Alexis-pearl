@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api, authStore } from '@/lib/api';
 import { ScreenHead, Modal, timeAgo } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
 const CAT_TAG: Record<string, string> = { policy: 't-blue', sop: 't-purple', brochure: 't-green', faq: 't-amber', contract: 't-red', training: 't-gray', lease: 't-blue', id: 't-gray', property: 't-green' };
 
@@ -48,7 +49,7 @@ export default function KB() {
           {answer.sources?.length > 0 && (
             <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
               <span className="muted">Sources:</span>
-              {answer.sources.map((s: any) => <span key={s.id} className={`tag ${CAT_TAG[s.category] || 't-gray'}`}>📎 {s.title}</span>)}
+              {answer.sources.map((s: any) => <span key={s.id} className={`tag ${CAT_TAG[s.category] || 't-gray'}`}><I name="paperclip" size={10} style={{ verticalAlign: '-1px', marginRight: 3 }} />{s.title}</span>)}
             </div>
           )}
         </div>

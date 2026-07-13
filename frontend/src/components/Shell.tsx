@@ -2,22 +2,23 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { authStore, api } from '@/lib/api';
+import { I } from '@/components/Icons';
 
 /* Role-aware navigation — mirrors the permission grid in the blueprint. */
 const NAV = [
-  { href: '/',          id: '1a', label: 'Command Center', icon: '⌂',  roles: ['owner', 'admin', 'agent', 'marketing'] },
-  { href: '/pipeline',  id: '1b', label: 'Pipeline',       icon: '◧',  roles: ['owner', 'admin', 'agent'] },
-  { href: '/deals',     id: '1c', label: 'Deals',          icon: '✓',  roles: ['owner', 'admin', 'agent'] },
-  { href: '/inbox',     id: '1d', label: 'Inbox',          icon: '💬', roles: ['owner', 'admin', 'agent', 'marketing'] },
-  { href: '/marketing', id: '1e', label: 'Marketing',      icon: '📣', roles: ['owner', 'admin', 'marketing', 'agent'] },
-  { href: '/finance',   id: '1f', label: 'Finance',        icon: '₵',  roles: ['owner', 'admin', 'agent', 'marketing'] }, // staff can submit expenses; full view guards inside
-  { href: '/plans',     id: '1g', label: 'Payment Plans',  icon: '▤',  roles: ['owner', 'admin', 'agent'] },
-  { href: '/reports',   id: '1h', label: 'Reports',        icon: '📈', roles: ['owner', 'admin', 'agent', 'marketing'] },
-  { href: '/kb',        id: '1i', label: 'Knowledge Base', icon: '🧠', roles: ['owner', 'admin', 'agent', 'marketing'] },
-  { href: '/pm',        id: '1j', label: 'Property Mgmt',  icon: '🏢', roles: ['owner', 'admin'] },
-  { href: '/clients',   id: '',   label: 'Clients',        icon: '👤', roles: ['owner', 'admin'] },
-  { href: '/team',      id: '',   label: 'Team',            icon: '🧑‍💼', roles: ['owner', 'admin'] },
-  { href: '/audit',     id: '',   label: 'Audit Log',      icon: '☰',  roles: ['owner', 'admin'] },
+  { href: '/',          id: '1a', label: 'Command Center', icon: 'home',      roles: ['owner', 'admin', 'agent', 'marketing'] },
+  { href: '/pipeline',  id: '1b', label: 'Pipeline',       icon: 'kanban',    roles: ['owner', 'admin', 'agent'] },
+  { href: '/deals',     id: '1c', label: 'Deals',          icon: 'briefcase', roles: ['owner', 'admin', 'agent'] },
+  { href: '/inbox',     id: '1d', label: 'Inbox',          icon: 'chat',      roles: ['owner', 'admin', 'agent', 'marketing'] },
+  { href: '/marketing', id: '1e', label: 'Marketing',      icon: 'megaphone', roles: ['owner', 'admin', 'marketing', 'agent'] },
+  { href: '/finance',   id: '1f', label: 'Finance',        icon: 'dollar',    roles: ['owner', 'admin', 'agent', 'marketing'] }, // staff can submit expenses; full view guards inside
+  { href: '/plans',     id: '1g', label: 'Payment Plans',  icon: 'calendar',  roles: ['owner', 'admin', 'agent'] },
+  { href: '/reports',   id: '1h', label: 'Reports',        icon: 'chart',     roles: ['owner', 'admin', 'agent', 'marketing'] },
+  { href: '/kb',        id: '1i', label: 'Knowledge Base', icon: 'book',      roles: ['owner', 'admin', 'agent', 'marketing'] },
+  { href: '/pm',        id: '1j', label: 'Property Mgmt',  icon: 'building',  roles: ['owner', 'admin'] },
+  { href: '/clients',   id: '',   label: 'Clients',        icon: 'users',     roles: ['owner', 'admin'] },
+  { href: '/team',      id: '',   label: 'Team',           icon: 'user',      roles: ['owner', 'admin'] },
+  { href: '/audit',     id: '',   label: 'Audit Log',      icon: 'list',      roles: ['owner', 'admin'] },
 ];
 
 const MOBILE_NAV = ['/', '/pipeline', '/inbox', '/plans', '/finance'];
@@ -57,18 +58,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,#1D9E75,#34D399)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: '#fff' }}>AP</div>
+        <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.12)', display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 6, background: 'var(--orange)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: '#fff' }}>AP</div>
           <div>
-            <div style={{ fontSize: 13.5, fontWeight: 700 }}>Alexis Pearl</div>
-            <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Real Estate OS</div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: '#fff' }}>Alexis Pearl</div>
+            <div style={{ fontSize: 10.5, color: '#A9BDD1' }}>Real Estate OS</div>
           </div>
         </div>
 
         <nav style={{ padding: '10px 0', flex: 1 }}>
           {items.map((n) => (
             <button key={n.href} className={`nav-item${path === n.href ? ' active' : ''}`} onClick={() => go(n.href)}>
-              <span style={{ width: 18, textAlign: 'center' }}>{n.icon}</span>
+              <I name={n.icon} size={16} />
               {n.label}
               {n.href === '/inbox' && alerts.inbox > 0 && <span className="nav-badge">{alerts.inbox}</span>}
               {n.href === '/' && alerts.approvals > 0 && <span className="nav-badge">{alerts.approvals}</span>}
@@ -76,20 +77,20 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div style={{ padding: 12, borderTop: '1px solid var(--border)' }}>
+        <div style={{ padding: 12, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
           <div className="spread">
             <div className="row" style={{ minWidth: 0 }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--navy-hover)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
                 {user.name?.split(' ').map((p: string) => p[0]).slice(0, 2).join('')}
               </div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.role}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
+                <div style={{ fontSize: 10, color: '#A9BDD1', textTransform: 'capitalize' }}>{user.role}</div>
               </div>
             </div>
             <div className="row" style={{ gap: 4 }}>
-              <button className="btn btn-sm" onClick={() => setShowChangePw(true)} title="Change password">🔑</button>
-              <button className="btn btn-sm" onClick={() => { authStore.clear(); window.location.href = '/login'; }}>Out</button>
+              <button className="nav-item" style={{ width: 'auto', margin: 0, padding: 7 }} onClick={() => setShowChangePw(true)} title="Change password"><I name="key" size={14} /></button>
+              <button className="nav-item" style={{ width: 'auto', margin: 0, padding: 7 }} onClick={() => { authStore.clear(); window.location.href = '/login'; }} title="Sign out"><I name="logout" size={14} /></button>
             </div>
           </div>
         </div>
@@ -103,13 +104,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <nav className="bottom-nav">
         {items.filter((n) => MOBILE_NAV.includes(n.href)).map((n) => (
           <button key={n.href} className={path === n.href ? 'active' : ''} onClick={() => go(n.href)}>
-            <span style={{ fontSize: 17 }}>{n.icon}</span>
+            <I name={n.icon} size={18} />
             {n.label.split(' ')[0]}
             {n.href === '/inbox' && alerts.inbox > 0 && <span className="nav-badge">{alerts.inbox}</span>}
           </button>
         ))}
         <button onClick={() => go(items.some((i) => i.href === '/kb') ? '/kb' : '/reports')}>
-          <span style={{ fontSize: 17 }}>⋯</span>More
+          <I name="more" size={18} />
+          More
         </button>
       </nav>
     </div>
@@ -168,7 +170,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="spread" style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{title}</div>
-          <button className="btn btn-sm" onClick={onClose}>✕</button>
+          <button className="btn btn-sm" onClick={onClose}><I name="x" size={13} /></button>
         </div>
         {children}
       </div>

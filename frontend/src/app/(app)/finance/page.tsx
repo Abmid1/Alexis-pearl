@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api, authStore } from '@/lib/api';
 import { ScreenHead, Modal, fmtGHS, timeAgo } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
 const INV_TAG: Record<string, string> = { paid: 't-green', pending: 't-amber', overdue: 't-red' };
 const EXP_TAG: Record<string, string> = { approved: 't-green', pending: 't-amber', rejected: 't-red' };
@@ -62,7 +63,7 @@ export default function Finance() {
               <div>
                 <div style={{ fontWeight: 600 }}>{e.category} — {fmtGHS(e.amount)}</div>
                 <div className="muted">{e.note || 'no note'} · {timeAgo(e.created_at)}</div>
-                {e.status === 'rejected' && e.reject_reason && <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 4 }}>↩ {e.reject_reason}</div>}
+                {e.status === 'rejected' && e.reject_reason && <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 4 }}><I name="alert" size={12} style={{ marginRight: 4, verticalAlign: '-2px' }} />{e.reject_reason}</div>}
               </div>
               <span className={`tag ${EXP_TAG[e.status]}`}>{e.status}</span>
             </div>
@@ -109,13 +110,13 @@ export default function Finance() {
                 <div>
                   <div style={{ fontWeight: 600 }}>{e.category} — {fmtGHS(e.amount)}</div>
                   <div className="muted">{e.note || 'no note'} · by {e.submitter?.name} · {timeAgo(e.created_at)}</div>
-                  {e.status === 'rejected' && e.reject_reason && <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 4 }}>↩ {e.reject_reason}</div>}
+                  {e.status === 'rejected' && e.reject_reason && <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 4 }}><I name="alert" size={12} style={{ marginRight: 4, verticalAlign: '-2px' }} />{e.reject_reason}</div>}
                 </div>
                 <div className="row">
-                  {e.receipt_url && <button className="btn btn-sm" onClick={() => setReceiptView(e.receipt_url)}>🧾 Receipt</button>}
+                  {e.receipt_url && <button className="btn btn-sm" onClick={() => setReceiptView(e.receipt_url)}><I name="receipt" size={12} /> Receipt</button>}
                   {e.status === 'pending' ? (
                     <>
-                      <button className="btn btn-sm btn-green" onClick={async () => { await api.finance.approveExpense(e.id); load(); }}>✓ Approve</button>
+                      <button className="btn btn-sm btn-green" onClick={async () => { await api.finance.approveExpense(e.id); load(); }}><I name="check" size={12} /> Approve</button>
                       <button className="btn btn-sm btn-red" onClick={() => { setRejectFor(e); setRejectReason(''); }}>Reject</button>
                     </>
                   ) : <span className={`tag ${EXP_TAG[e.status]}`}>{e.status}</span>}
@@ -157,8 +158,8 @@ export default function Finance() {
                   <div className="muted">{p.client?.name} · recorded by {p.recorder?.name || 'client (in-app)'} · {timeAgo(p.created_at)}</div>
                 </div>
                 <div className="row">
-                  {p.receipt_url && <button className="btn btn-sm" onClick={() => setReceiptView(p.receipt_url)}>🧾</button>}
-                  <button className="btn btn-sm btn-green" onClick={async () => { await api.finance.approvePayment(p.id); load(); }}>✓ Approve</button>
+                  {p.receipt_url && <button className="btn btn-sm" onClick={() => setReceiptView(p.receipt_url)}><I name="receipt" size={12} /></button>}
+                  <button className="btn btn-sm btn-green" onClick={async () => { await api.finance.approvePayment(p.id); load(); }}><I name="check" size={12} /> Approve</button>
                 </div>
               </div>
             ))}

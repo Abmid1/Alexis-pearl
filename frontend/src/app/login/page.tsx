@@ -27,10 +27,10 @@ export default function Login() {
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{
             width: 52, height: 52, borderRadius: 14, margin: '0 auto 12px',
-            background: 'linear-gradient(135deg, #1D9E75, #34D399)',
+            background: 'var(--orange)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 20, fontWeight: 800, color: '#fff',
-            boxShadow: '0 8px 24px rgba(29,158,117,0.35)',
+            boxShadow: '0 8px 24px rgba(255,122,89,0.35)',
           }}>AP</div>
           <h1 style={{ fontSize: 20, fontWeight: 700 }}>Alexis Pearl</h1>
           <div className="muted">One system for the whole company</div>

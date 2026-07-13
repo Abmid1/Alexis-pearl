@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { ScreenHead, Modal, fmtGHS, timeAgo } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
 const TICKET_TAG: Record<string, string> = { open: 't-red', in_progress: 't-amber', resolved: 't-green' };
 
@@ -33,7 +34,7 @@ export default function PM() {
 
       {!data.active ? (
         <div className="card" style={{ textAlign: 'center', padding: 36 }}>
-          <div style={{ fontSize: 30, marginBottom: 10 }}>🏢</div>
+          <div style={{ marginBottom: 10 }}><I name="building" size={32} style={{ color: 'var(--text-muted)' }} /></div>
           <div style={{ fontWeight: 700, marginBottom: 6 }}>Dormant — designed in from day one</div>
           <div className="muted" style={{ maxWidth: 420, margin: '0 auto 16px' }}>
             You manage zero properties today. The moment you take on the first one, add its lease here and the module comes alive: rent roll, arrears, renewal alerts, maintenance tickets, document vault.

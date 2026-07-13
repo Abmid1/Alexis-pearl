@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, authStore } from '@/lib/api';
 import { fmtGHS, timeAgo, ChangePasswordModal } from '@/components/Shell';
+import { I } from '@/components/Icons';
 
 export default function Portal() {
   const [user, setUser] = useState<any>(undefined);
@@ -54,7 +55,7 @@ export default function Portal() {
       {/* Header */}
       <div className="spread" style={{ marginBottom: 18 }}>
         <div className="row">
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#1D9E75,#34D399)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: '#fff' }}>AP</div>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--orange)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: '#fff' }}>AP</div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 14 }}>Alexis Pearl</div>
             <div className="muted" style={{ fontSize: 11 }}>Client portal · <span className="id-badge" style={{ fontSize: 9 }}>1k</span></div>
@@ -68,7 +69,7 @@ export default function Portal() {
 
       {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
 
-      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Welcome, {data.client.name.split(' ')[0]} 👋</div>
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Welcome, {data.client.name.split(' ')[0]}</div>
 
       {paidFlash && <div className="card" style={{ marginBottom: 12, borderColor: 'var(--green)', color: 'var(--green-bright)', fontWeight: 600 }}>{paidFlash}</div>}
 
@@ -113,7 +114,7 @@ export default function Portal() {
                 {p.unit && (
                   <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, padding: 12 }}>
                     <div className="spread" style={{ marginBottom: 6 }}>
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>🏗 {p.unit.name} construction</span>
+                      <span className="row" style={{ fontWeight: 600, fontSize: 13, gap: 5 }}><I name="crane" size={13} /> {p.unit.name} construction</span>
                       <span style={{ fontWeight: 700, color: 'var(--green-bright)' }}>{p.unit.completion_pct}%</span>
                     </div>
                     <div className="progress" style={{ height: 6, marginBottom: 6 }}><div style={{ width: `${p.unit.completion_pct}%` }} /></div>
@@ -150,7 +151,7 @@ export default function Portal() {
           {data.documents.map((d: any) => (
             <div key={d.id} className="card spread">
               <div>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>📄 {d.title}</div>
+                <div className="row" style={{ fontWeight: 600, fontSize: 13, gap: 5 }}><I name="doc" size={13} /> {d.title}</div>
                 <div className="muted">{d.category} · {timeAgo(d.created_at)}</div>
               </div>
               {d.file_url && <a className="btn btn-sm" href={d.file_url} target="_blank">Open</a>}
@@ -174,7 +175,7 @@ export default function Portal() {
               }}>
                 {m.body}
                 <div style={{ fontSize: 10, opacity: 0.7, marginTop: 3 }}>
-                  {m.sender_type === 'ai' ? '🤖 Alexis Pearl AI' : m.direction === 'out' ? 'Alexis Pearl' : 'You'} · {timeAgo(m.created_at)}
+                  {m.sender_type === 'ai' ? 'Alexis Pearl AI' : m.direction === 'out' ? 'Alexis Pearl' : 'You'} · {timeAgo(m.created_at)}
                 </div>
               </div>
             ))}
