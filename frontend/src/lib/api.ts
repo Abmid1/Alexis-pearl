@@ -1,4 +1,4 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+export const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export const authStore = {
   getToken: () => (typeof window !== 'undefined' ? localStorage.getItem('ap_token') : null),
@@ -65,6 +65,10 @@ export const api = {
     useCopy: (id: string, copy: string) => post(`/api/marketing/listings/${id}/use-copy`, { copy }),
     approveListing: (id: string) => post(`/api/marketing/listings/${id}/approve`),
     rejectListing: (id: string) => post(`/api/marketing/listings/${id}/reject`),
+    updateListing: (id: string, b: any) => patch(`/api/marketing/listings/${id}`, b),
+    submitListing: (id: string) => post(`/api/marketing/listings/${id}/submit`),
+    unpublishListing: (id: string) => post(`/api/marketing/listings/${id}/unpublish`),
+    archiveListing: (id: string) => post(`/api/marketing/listings/${id}/archive`),
     broadcast: (b: any) => post('/api/marketing/broadcast', b),
   },
   finance: {
@@ -94,6 +98,7 @@ export const api = {
     add: (b: any) => post('/api/kb', b),
     remove: (id: string) => del(`/api/kb/${id}`),
     ask: (question: string) => post('/api/kb/ask', { question }),
+    setPublic: (id: string, is_public: boolean) => patch(`/api/kb/${id}/visibility`, { is_public }),
   },
   pm: {
     overview: () => req('/api/pm'),
@@ -107,6 +112,23 @@ export const api = {
     pay: (installmentId: string) => post(`/api/portal/pay/${installmentId}`),
     chat: (body: string) => post('/api/portal/chat', { body }),
     thread: () => req('/api/portal/chat'),
+  },
+  viewings: {
+    list: (status = 'all') => req(`/api/viewings?status=${encodeURIComponent(status)}`),
+    confirm: (id: string, b: any = {}) => post(`/api/viewings/${id}/confirm`, b),
+    decline: (id: string, reason: string, notify = true) => post(`/api/viewings/${id}/decline`, { reason, notify }),
+    reschedule: (id: string, b: any) => post(`/api/viewings/${id}/reschedule`, b),
+    cancel: (id: string, reason?: string) => post(`/api/viewings/${id}/cancel`, { reason }),
+    outcome: (id: string, status: 'completed' | 'no_show', outcome?: string) => post(`/api/viewings/${id}/outcome`, { status, outcome }),
+    update: (id: string, b: any) => patch(`/api/viewings/${id}`, b),
+  },
+  enquiries: {
+    list: (status = 'all') => req(`/api/enquiries?status=${encodeURIComponent(status)}`),
+    setStatus: (id: string, status: string) => patch(`/api/enquiries/${id}`, { status }),
+  },
+  company: {
+    get: () => req('/api/company'),
+    update: (b: any) => patch('/api/company', b),
   },
   misc: {
     audit: () => req('/api/audit'),

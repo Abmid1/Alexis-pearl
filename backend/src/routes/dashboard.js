@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { db } from '../db.js';
 import { auth, roles, MANAGERS, STAFF } from '../middleware/auth.js';
 import { dailyBrief } from '../lib/ai.js';
+import { db } from '../db.js';
 
 const router = Router();
 router.use(auth, roles(...STAFF));
@@ -9,26 +9,34 @@ router.use(auth, roles(...STAFF));
 /** 1a — Command Center: KPIs, approvals queue, AI brief, departments at a glance. */
 router.get('/', async (req, res) => {
   const now = new Date();
+  // installments have no company_id — scope through this company's plans
+  const { data: myPlans } = await req.tdb.from('payment_plans').select('id');
+  const planIds = (myPlans || []).map((p) => p.id);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const in7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
   const [leadsMonth, activeDeals, paymentsMonth, overdueLeads,
          pendDeals, pendExpenses, pendListings, pendPayments,
-         convs, unassigned, invOverdue, upcomingInst, allLeadsMonth, coldLeads] = await Promise.all([
-    db.from('leads').select('id', { count: 'exact', head: true }).gte('created_at', monthStart),
-    db.from('deals').select('id', { count: 'exact', head: true }).in('status', ['draft', 'pending_approval', 'approved']),
-    db.from('payments').select('amount').eq('status', 'approved').gte('created_at', monthStart),
-    db.from('leads').select('id', { count: 'exact', head: true }).lt('next_follow_up', now.toISOString()).not('stage', 'in', '("won","lost")'),
-    db.from('deals').select('id,title,sale_price,created_at,agent:agent_id(name)').eq('status', 'pending_approval'),
-    db.from('expenses').select('id,amount,category,note,receipt_url,created_at,submitter:submitted_by(name)').eq('status', 'pending'),
-    db.from('properties').select('id,title,price,location,created_at').eq('listing_status', 'pending_approval'),
-    db.from('payments').select('id,amount,method,created_at,client:client_id(name)').eq('status', 'pending_approval'),
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('unread', true),
-    db.from('conversations').select('id', { count: 'exact', head: true }).is('assigned_to', null),
-    db.from('invoices').select('id', { count: 'exact', head: true }).eq('status', 'overdue'),
-    db.from('installments').select('amount,due_date,plan:plan_id(client:client_id(name))').eq('status', 'pending').lte('due_date', in7),
-    db.from('leads').select('source').gte('created_at', monthStart),
-    db.from('leads').select('id,name,updated_at').not('stage', 'in', '("won","lost")').lt('updated_at', new Date(Date.now() - 7 * 86400000).toISOString()),
+         convs, unassigned, invOverdue, upcomingInst, allLeadsMonth, coldLeads, pendingViewings, newEnquiries, company] = await Promise.all([
+    req.tdb.from('leads').select('id', { count: 'exact', head: true }).gte('created_at', monthStart),
+    req.tdb.from('deals').select('id', { count: 'exact', head: true }).in('status', ['draft', 'pending_approval', 'approved']),
+    req.tdb.from('payments').select('amount').eq('status', 'approved').gte('created_at', monthStart),
+    req.tdb.from('leads').select('id', { count: 'exact', head: true }).lt('next_follow_up', now.toISOString()).not('stage', 'in', '("won","lost")'),
+    req.tdb.from('deals').select('id,title,sale_price,created_at,agent:agent_id(name)').eq('status', 'pending_approval'),
+    req.tdb.from('expenses').select('id,amount,category,note,receipt_url,created_at,submitter:submitted_by(name)').eq('status', 'pending'),
+    req.tdb.from('properties').select('id,title,price,location,created_at').eq('listing_status', 'pending_approval'),
+    req.tdb.from('payments').select('id,amount,method,created_at,client:client_id(name)').eq('status', 'pending_approval'),
+    req.tdb.from('conversations').select('id', { count: 'exact', head: true }).eq('unread', true),
+    req.tdb.from('conversations').select('id', { count: 'exact', head: true }).is('assigned_to', null),
+    req.tdb.from('invoices').select('id', { count: 'exact', head: true }).eq('status', 'overdue'),
+    planIds.length
+      ? req.tdb.child('installments').select('amount,due_date,plan:plan_id(client:client_id(name))').in('plan_id', planIds).eq('status', 'pending').lte('due_date', in7)
+      : Promise.resolve({ data: [] }),
+    req.tdb.from('leads').select('source').gte('created_at', monthStart),
+    req.tdb.from('leads').select('id,name,updated_at').not('stage', 'in', '("won","lost")').lt('updated_at', new Date(Date.now() - 7 * 86400000).toISOString()),
+    req.tdb.from('viewings').select('id', { count: 'exact', head: true }).eq('status', 'requested'),
+    req.tdb.from('enquiries').select('id', { count: 'exact', head: true }).eq('status', 'new'),
+    db.from('companies').select('name').eq('id', req.user.company_id).single(),
   ]);
 
   const collected = (paymentsMonth.data || []).reduce((s, p) => s + Number(p.amount), 0);
@@ -51,7 +59,8 @@ router.get('/', async (req, res) => {
     upcoming: (upcomingInst.data || []).map((i) => ({ client: i.plan?.client?.name || 'client', amount: i.amount, due: i.due_date })),
     topSource: top?.[0], topSourceCount: top?.[1],
     pendingApprovals: approvals.length,
-  });
+    pendingViewings: pendingViewings.count || 0,
+  }, company.data?.name);
 
   res.json({
     kpis: {
@@ -67,6 +76,7 @@ router.get('/', async (req, res) => {
       inbox:   { alert: (convs.count || 0) + (unassigned.count || 0), note: `${convs.count || 0} unread · ${unassigned.count || 0} unassigned` },
       finance: { alert: (pendExpenses.data?.length || 0) + (invOverdue.count || 0), note: `${pendExpenses.data?.length || 0} pending · ${invOverdue.count || 0} overdue inv.` },
       marketing: { alert: pendListings.data?.length || 0, note: 'listings awaiting approval' },
+      website: { alert: (pendingViewings.count || 0) + (newEnquiries.count || 0), note: `${pendingViewings.count || 0} viewing requests · ${newEnquiries.count || 0} new enquiries` },
     },
   });
 });

@@ -3,21 +3,28 @@ import { db } from '../db.js';
 /**
  * AI brain — Gemini when GEMINI_API_KEY is set, deterministic fallback
  * otherwise so every AI feature stays functional in demo mode.
- * Powers: inbox replies (1d), daily brief (1a), listing copy (1e), KB answers (1i).
+ * Powers: inbox replies (1d), daily brief (1a), listing copy (1e), KB answers (1i),
+ * and the customer property assistant (lib/assistant.js).
+ * Every retrieval is scoped to one company.
  */
 
 const MODEL = 'gemini-2.0-flash';
 
-async function gemini(prompt) {
+/** Low-level call. `system` is sent as a system instruction, separate from user/data content. */
+export async function gemini(prompt, { system, json = false } = {}) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
   try {
+    const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
+    if (system) body.systemInstruction = { parts: [{ text: system }] };
+    if (json) body.generationConfig = { responseMimeType: 'application/json', temperature: 0 };
     const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(20000),
       }
     );
     const j = await r.json();
@@ -27,6 +34,11 @@ async function gemini(prompt) {
   }
 }
 
+async function companyName(companyId) {
+  const { data } = await db.from('companies').select('name').eq('id', companyId).maybeSingle();
+  return data?.name || 'our agency';
+}
+
 // Topics the AI must NOT auto-answer — always hold back and draft (Suggest).
 const SENSITIVE = /negotiat|discount|lower|reduce|complain|angry|upset|refund|cancel|lawyer|legal|court|dispute|problem|wrong|scam|fraud|terrible/i;
 
@@ -34,11 +46,18 @@ export function isSensitive(text) {
   return SENSITIVE.test(text);
 }
 
-/** Search KB documents for the best match to a question (simple relevance scoring). */
-export async function searchKB(question) {
-  const { data: docs } = await db.from('documents').select('id,title,category,content_text').not('content_text', 'is', null);
+/**
+ * Search one company's KB documents for the best match (simple relevance scoring).
+ * Client-specific documents (contracts, IDs) are never used — they belong to one person.
+ * publicOnly: restrict to documents staff have marked as public (customer assistant).
+ */
+export async function searchKB(companyId, question, { publicOnly = false } = {}) {
+  let q = db.from('documents').select('id,title,category,content_text')
+    .eq('company_id', companyId).is('client_id', null).not('content_text', 'is', null);
+  if (publicOnly) q = q.eq('is_public', true);
+  const { data: docs } = await q;
   if (!docs?.length) return [];
-  const words = question.toLowerCase().split(/\W+/).filter((w) => w.length > 3);
+  const words = String(question).toLowerCase().split(/\W+/).filter((w) => w.length > 3);
   const scored = docs
     .map((d) => {
       const body = `${d.title} ${d.content_text}`.toLowerCase();
@@ -51,8 +70,8 @@ export async function searchKB(question) {
 }
 
 /** Inbox reply (1d). Returns { text, confident, kbSource }. */
-export async function draftReply({ contactName, channel, history, incoming }) {
-  const kbDocs = await searchKB(incoming);
+export async function draftReply({ companyId, contactName, channel, history, incoming }) {
+  const [kbDocs, name] = await Promise.all([searchKB(companyId, incoming), companyName(companyId)]);
   const kbSource = kbDocs[0]?.title || null;
   const sensitive = isSensitive(incoming);
   const confident = !!kbDocs.length && !sensitive;
@@ -61,8 +80,9 @@ export async function draftReply({ contactName, channel, history, incoming }) {
     ? `COMPANY KNOWLEDGE (answer from this, cite nothing else):\n${kbDocs.map((d) => `[${d.title}]\n${d.content_text.slice(0, 1500)}`).join('\n\n')}`
     : 'No knowledge-base match — answer generally and offer to connect them with an agent.';
 
-  const prompt = `You are the assistant for Alexis Pearl, a real estate company in Accra, Ghana. Currency is GHS.
+  const prompt = `You are the assistant for ${name}, a real estate company in Ghana. Currency is GHS.
 Reply to this ${channel} message from ${contactName || 'a client'}. Be warm, brief (under 80 words), and concrete.
+Never promise availability, prices or discounts that are not stated in the company knowledge.
 
 ${kbSection}
 
@@ -78,19 +98,20 @@ Reply only with the message text.`;
     // Fallback drafts keep the workflow alive without an API key
     text = kbDocs.length
       ? `Hi${contactName ? ' ' + contactName : ''}! ${kbDocs[0].content_text.slice(0, 220)}${kbDocs[0].content_text.length > 220 ? '…' : ''} Would you like me to connect you with your agent for more detail?`
-      : `Hi${contactName ? ' ' + contactName : ''}, thanks for reaching out to Alexis Pearl! One of our agents will get back to you shortly. Is there anything specific about a property, payment plan, or viewing I can note for them?`;
+      : `Hi${contactName ? ' ' + contactName : ''}, thanks for reaching out to ${name}! One of our agents will get back to you shortly. Is there anything specific about a property, payment plan, or viewing I can note for them?`;
   }
   return { text, confident, kbSource };
 }
 
 /** Command-center daily brief (1a). */
-export async function dailyBrief(stats) {
-  const prompt = `You are the operations analyst for Alexis Pearl real estate, Accra. Write a 3-4 sentence morning brief in plain English for the owner. No headings, no bullets. Data:
+export async function dailyBrief(stats, name = 'the agency') {
+  const prompt = `You are the operations analyst for ${name}, a real estate company in Ghana. Write a 3-4 sentence morning brief in plain English for the owner. No headings, no bullets. Data:
 - Cold leads (no contact 7+ days): ${stats.coldLeads.map((l) => l.name).join(', ') || 'none'}
 - Overdue follow-ups: ${stats.overdueCount}
 - Payments due in next 7 days: ${stats.upcoming.map((u) => `${u.client} GHS ${u.amount} on ${u.due}`).join('; ') || 'none'}
 - Best lead source this month: ${stats.topSource || 'n/a'} (${stats.topSourceCount || 0} leads)
-- Pending approvals: ${stats.pendingApprovals}`;
+- Pending approvals: ${stats.pendingApprovals}
+- Viewing requests waiting for confirmation: ${stats.pendingViewings || 0}`;
 
   const out = await gemini(prompt);
   if (out) return out;
@@ -100,6 +121,7 @@ export async function dailyBrief(stats) {
       ? `You have ${stats.overdueCount} overdue follow-up${stats.overdueCount > 1 ? 's' : ''} that need attention today.`
       : 'No overdue follow-ups — the pipeline is being worked on time.'
   );
+  if (stats.pendingViewings) parts.push(`${stats.pendingViewings} viewing request${stats.pendingViewings > 1 ? 's are' : ' is'} waiting to be confirmed.`);
   if (stats.coldLeads.length) parts.push(`${stats.coldLeads.length} lead${stats.coldLeads.length > 1 ? 's have' : ' has'} gone cold (${stats.coldLeads.slice(0, 3).map((l) => l.name).join(', ')}) — worth a re-touch.`);
   if (stats.upcoming.length) parts.push(`${stats.upcoming.length} installment payment${stats.upcoming.length > 1 ? 's are' : ' is'} due within 7 days totalling GHS ${stats.upcoming.reduce((s, u) => s + Number(u.amount), 0).toLocaleString()}.`);
   if (stats.topSource) parts.push(`${stats.topSource} is your best-performing channel this month with ${stats.topSourceCount} leads.`);
@@ -109,15 +131,21 @@ export async function dailyBrief(stats) {
 
 /** Listing copy (1e) — drafted by AI, approved by Owner/Admin before publish. */
 export async function listingCopy(property) {
-  const prompt = `Write a compelling 60-90 word property listing for social media. Property: ${property.title}, ${property.location}, GHS ${Number(property.price).toLocaleString()}, type: ${property.ptype}. ${property.description || ''} End with a call to action to message us. No hashtags, no emojis in the first sentence.`;
+  const facts = [
+    property.bedrooms != null && `${property.bedrooms} bedrooms`,
+    property.bathrooms != null && `${property.bathrooms} bathrooms`,
+    property.furnishing && property.furnishing.replace('_', '-'),
+    property.amenities?.length && `amenities: ${property.amenities.join(', ')}`,
+  ].filter(Boolean).join('; ');
+  const prompt = `Write a compelling 60-90 word property listing for social media. Property: ${property.title}, ${property.location}, GHS ${Number(property.price).toLocaleString()}, type: ${property.ptype}. ${facts} ${property.description || ''} Use only the facts given; do not invent features or claim title verification. End with a call to action to message us. No hashtags, no emojis in the first sentence.`;
   const out = await gemini(prompt);
   if (out) return out;
-  return `${property.title} — ${property.location}. Now ${property.ptype === 'rent' ? 'renting' : 'selling'} at GHS ${Number(property.price).toLocaleString()}. ${property.description ? property.description.slice(0, 120) : 'Prime location, flexible payment plans available.'} 📍 Message us today to book a viewing — plots and units are moving fast.`;
+  return `${property.title} — ${property.location}. Now ${property.ptype === 'rent' ? 'renting' : 'selling'} at GHS ${Number(property.price).toLocaleString()}. ${property.description ? property.description.slice(0, 120) : 'Prime location, flexible payment plans available.'} Message us today to book a viewing.`;
 }
 
 /** Knowledge-base ask-anything (1i). Returns { answer, sources }. */
-export async function kbAnswer(question) {
-  const docs = await searchKB(question);
+export async function kbAnswer(companyId, question) {
+  const docs = await searchKB(companyId, question);
   if (!docs.length) {
     return { answer: 'No matching document found in the knowledge base. Try different wording, or upload the relevant document first.', sources: [] };
   }

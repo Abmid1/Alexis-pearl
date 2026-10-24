@@ -4,10 +4,21 @@ import { db } from '../db.js';
  * Integration seam — every outbound WhatsApp/SMS/email goes through here.
  * With credentials set it sends for real; without, it records to the outbox
  * as 'simulated' so the whole workflow stays functional and inspectable.
+ *
+ * opts.companyId  — which company the message belongs to (outbox is per company)
+ * opts.dedupeKey  — the same key is never sent twice (safe on retries)
+ *
+ * Email has no provider wired yet: email rows are always 'simulated'.
  */
-export async function sendMessage(channel, toAddr, body, ref = 'reply') {
-  let status = 'simulated';
+export async function sendMessage(channel, toAddr, body, ref = 'reply', opts = {}) {
+  const { companyId = null, dedupeKey = null } = opts;
 
+  if (dedupeKey) {
+    const { data: prior } = await db.from('outbox').select('id,status').eq('dedupe_key', dedupeKey).maybeSingle();
+    if (prior) return { ...prior, duplicate: true };
+  }
+
+  let status = 'simulated';
   if (channel === 'whatsapp' && process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
     try {
       const r = await fetch(
@@ -32,11 +43,10 @@ export async function sendMessage(channel, toAddr, body, ref = 'reply') {
     }
   }
 
-  const { data } = await db
-    .from('outbox')
-    .insert({ channel, to_addr: toAddr, body, ref, status })
-    .select()
-    .single();
+  const row = { company_id: companyId, channel, to_addr: toAddr, body, ref, status };
+  if (dedupeKey) row.dedupe_key = dedupeKey;
+  const { data, error } = await db.from('outbox').insert(row).select().single();
+  if (error && error.code === '23505') return { duplicate: true };   // lost a race with an identical send
   return data;
 }
 

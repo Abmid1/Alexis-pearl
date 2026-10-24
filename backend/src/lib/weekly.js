@@ -1,17 +1,19 @@
 import { db } from '../db.js';
 import { sendMessage } from './integrations.js';
+import { tenantDb } from './tenant.js';
 
 /** 1h — compiles the weekly report from live data. Nobody builds a spreadsheet. */
-export async function compileWeeklyReport() {
+export async function compileWeeklyReport(companyId) {
+  const t = tenantDb(companyId);
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
   const [{ data: leads }, { data: allLeads }, { data: deals }, { data: payments }, { data: msgs }, { data: agents }] = await Promise.all([
-    db.from('leads').select('id,source,stage,owner_id,created_at').gte('created_at', weekAgo),
-    db.from('leads').select('id,source,stage,owner_id'),
-    db.from('deals').select('id,agent_id,sale_price,status,created_at'),
-    db.from('payments').select('amount,created_at,status').eq('status', 'approved').gte('created_at', weekAgo),
-    db.from('messages').select('conversation_id,direction,created_at').gte('created_at', weekAgo).eq('is_draft', false).order('created_at'),
-    db.from('users').select('id,name').in('role', ['agent', 'owner', 'admin']),
+    t.from('leads').select('id,source,stage,owner_id,created_at').gte('created_at', weekAgo),
+    t.from('leads').select('id,source,stage,owner_id'),
+    t.from('deals').select('id,agent_id,sale_price,status,created_at'),
+    t.from('payments').select('amount,created_at,status').eq('status', 'approved').gte('created_at', weekAgo),
+    messagesForCompany(t, weekAgo),
+    t.from('users').select('id,name').in('role', ['agent', 'owner', 'admin']),
   ]);
 
   // funnel (all time, current stages)
@@ -59,23 +61,34 @@ export async function compileWeeklyReport() {
   };
 }
 
+/** Messages have no company_id — scope them through this company's conversations. */
+async function messagesForCompany(t, since) {
+  const { data: convs } = await t.from('conversations').select('id');
+  const ids = (convs || []).map((c) => c.id);
+  if (!ids.length) return { data: [] };
+  return t.child('messages').select('conversation_id,direction,created_at')
+    .in('conversation_id', ids).gte('created_at', since).eq('is_draft', false).order('created_at');
+}
+
 /** Auto-sends every Monday (cron) — WhatsApp + email to all department heads. */
-export async function sendWeeklyReport() {
-  const report = await compileWeeklyReport();
+export async function sendWeeklyReport(companyId) {
+  const t = tenantDb(companyId);
+  const report = await compileWeeklyReport(companyId);
+  const { data: company } = await db.from('companies').select('name').eq('id', companyId).single();
   const summary =
-    `📊 Alexis Pearl — weekly digest (w/c ${report.weekStart})\n` +
+    `${company?.name || 'Weekly'} — weekly digest (w/c ${report.weekStart})\n` +
     `New leads: ${report.newLeadsThisWeek} · Conversion: ${report.conversionRate}% · Revenue: GHS ${report.weeklyRevenue.toLocaleString()}\n` +
     `Avg response time: ${report.avgResponseMins ?? '—'} min\n` +
     `Top agent: ${report.leaderboard[0]?.agent || '—'} (GHS ${(report.leaderboard[0]?.dealsValue || 0).toLocaleString()})\n` +
     `Sources: ${Object.entries(report.sources).map(([s, n]) => `${s} ${n}`).join(', ') || '—'}`;
 
-  const { data: heads } = await db.from('users').select('name,email,phone').in('role', ['owner', 'admin', 'agent', 'marketing']).eq('active', true);
+  const { data: heads } = await t.from('users').select('name,email,phone').in('role', ['owner', 'admin', 'agent', 'marketing']).eq('active', true);
   const sentTo = [];
   for (const h of heads || []) {
-    if (h.phone) { await sendMessage('whatsapp', h.phone, summary, 'report'); sentTo.push(`${h.name} (whatsapp)`); }
-    if (h.email) { await sendMessage('email', h.email, summary, 'report'); sentTo.push(`${h.name} (email)`); }
+    if (h.phone) { await sendMessage('whatsapp', h.phone, summary, 'report', { companyId }); sentTo.push(`${h.name} (whatsapp)`); }
+    if (h.email) { await sendMessage('email', h.email, summary, 'report', { companyId }); sentTo.push(`${h.name} (email)`); }
   }
-  const { data: run } = await db.from('report_runs').insert({
+  const { data: run } = await t.from('report_runs').insert({
     week_start: report.weekStart, payload: report, sent_to: sentTo,
   }).select().single();
   return run;

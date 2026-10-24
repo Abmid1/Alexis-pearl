@@ -25,7 +25,8 @@ export default function CommandCenter() {
     { key: 'inbox',     label: 'Inbox',     href: '/inbox' },
     { key: 'finance',   label: 'Finance',   href: '/finance' },
     { key: 'marketing', label: 'Marketing', href: '/marketing' },
-  ];
+    { key: 'website',   label: 'Website',   href: '/viewings' },
+  ].filter((d) => data?.departments?.[d.key]);
 
   return (
     <div>

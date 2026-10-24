@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { db } from '../db.js';
 import { auth, roles, STAFF, MANAGERS } from '../middleware/auth.js';
 import { audit } from '../lib/audit.js';
 import { sendMessage } from '../lib/integrations.js';
+import { checkRefs } from '../lib/tenant.js';
+import { db } from '../db.js';
 
 const router = Router();
 router.use(auth, roles(...STAFF));
@@ -26,11 +27,11 @@ function enrich(p) {
 
 /** 1g — all plans with progress. Agents see their clients' plans. */
 router.get('/', async (req, res) => {
-  const { data, error } = await db.from('payment_plans').select(planSelect).order('created_at', { ascending: false });
+  const { data, error } = await req.tdb.from('payment_plans').select(planSelect).order('created_at', { ascending: false });
   if (error) return res.status(500).json({ error: error.message });
   let plans = (data || []).map(enrich);
   if (req.user.role === 'agent') {
-    const { data: myDeals } = await db.from('deals').select('id').eq('agent_id', req.user.id);
+    const { data: myDeals } = await req.tdb.from('deals').select('id').eq('agent_id', req.user.id);
     const mine = new Set((myDeals || []).map((d) => d.id));
     plans = plans.filter((p) => !p.deal_id || mine.has(p.deal_id));
   }
@@ -41,8 +42,9 @@ router.get('/', async (req, res) => {
 router.post('/', roles(...MANAGERS), async (req, res) => {
   const { deal_id, client_id, unit_id, total, installment_count, start_date } = req.body || {};
   if (!client_id || !total || !installment_count) return res.status(400).json({ error: 'client_id, total, installment_count required' });
+  if (!(await checkRefs(req, res, { client_id: 'clients', deal_id: 'deals', unit_id: 'units' }))) return;
 
-  const { data: plan, error } = await db.from('payment_plans').insert({
+  const { data: plan, error } = await req.tdb.from('payment_plans').insert({
     deal_id: deal_id || null, client_id, unit_id: unit_id || null,
     total, installment_count, start_date: start_date || new Date().toISOString().slice(0, 10),
   }).select().single();
@@ -58,9 +60,9 @@ router.post('/', roles(...MANAGERS), async (req, res) => {
       amount: i === installment_count - 1 ? +(total - per * (installment_count - 1)).toFixed(2) : per,
     };
   });
-  await db.from('installments').insert(rows);
+  await req.tdb.child('installments').insert(rows);
   await audit(req.user, 'created', 'payment_plan', plan.id, { total, installment_count });
-  const { data: full } = await db.from('payment_plans').select(planSelect).eq('id', plan.id).single();
+  const { data: full } = await req.tdb.from('payment_plans').select(planSelect).eq('id', plan.id).single();
   res.json(enrich(full));
 });
 
@@ -68,11 +70,11 @@ router.post('/', roles(...MANAGERS), async (req, res) => {
 router.post('/:id/record-payment', async (req, res) => {
   const { amount, method, receipt_url } = req.body || {};
   if (!amount || !method) return res.status(400).json({ error: 'amount and method required' });
-  const { data: plan } = await db.from('payment_plans').select(planSelect).eq('id', req.params.id).single();
+  const { data: plan } = await req.tdb.from('payment_plans').select(planSelect).eq('id', req.params.id).single();
   if (!plan) return res.status(404).json({ error: 'Plan not found' });
 
   const next = (plan.installments || []).sort((a, b) => a.seq - b.seq).find((i) => i.status !== 'paid');
-  const { data: payment, error } = await db.from('payments').insert({
+  const { data: payment, error } = await req.tdb.from('payments').insert({
     plan_id: plan.id, installment_id: next?.id || null, client_id: plan.client_id,
     amount, method, receipt_url: receipt_url || null,
     recorded_by: req.user.id, status: 'pending_approval',   // manual records need Owner/Admin approval
@@ -87,7 +89,7 @@ router.patch('/units/:unitId', async (req, res) => {
   const patch = {};
   if ('completion_pct' in req.body) patch.completion_pct = Math.max(0, Math.min(100, Number(req.body.completion_pct)));
   if ('handover_date' in req.body) patch.handover_date = req.body.handover_date;
-  const { data, error } = await db.from('units').update(patch).eq('id', req.params.unitId).select().single();
+  const { data, error } = await req.tdb.from('units').update(patch).eq('id', req.params.unitId).select().single();
   if (error) return res.status(500).json({ error: error.message });
   await audit(req.user, 'updated', 'unit', data.id, patch);
   res.json(data);
@@ -96,23 +98,36 @@ router.patch('/units/:unitId', async (req, res) => {
 /** Send WhatsApp reminders now for installments due in the next N days (also runs on cron). */
 router.post('/send-reminders', async (req, res) => {
   const days = Number(req.body?.days ?? 3);
+  const result = await sendInstallmentReminders(req.user.company_id, days);
+  await audit(req.user, 'sent_reminders', 'installments', null, { sent: result });
+  res.json({ sent: result });
+});
+
+/**
+ * WhatsApp reminders for one company's installments due within `days`.
+ * Shared by the manual button and the daily cron. Dedupe key = one reminder per installment.
+ */
+export async function sendInstallmentReminders(companyId, days = 3) {
   const cutoff = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+  const { data: company } = await db.from('companies').select('name').eq('id', companyId).single();
+  const { data: plans } = await db.from('payment_plans').select('id').eq('company_id', companyId);
+  const planIds = (plans || []).map((p) => p.id);
+  if (!planIds.length) return 0;
   const { data: due } = await db.from('installments')
     .select('*, plan:plan_id(client:client_id(name,phone))')
-    .eq('status', 'pending').eq('reminder_sent', false).lte('due_date', cutoff);
+    .in('plan_id', planIds).eq('status', 'pending').eq('reminder_sent', false).lte('due_date', cutoff);
 
   let sent = 0;
   for (const i of due || []) {
     const c = i.plan?.client;
     if (!c?.phone) continue;
     await sendMessage('whatsapp', c.phone,
-      `Hello ${c.name}, a friendly reminder from Alexis Pearl: your installment of GHS ${Number(i.amount).toLocaleString()} is due on ${i.due_date}. You can pay in the client portal or reply here for help.`,
-      'reminder');
+      `Hello ${c.name}, a friendly reminder from ${company?.name || 'your agency'}: your installment of GHS ${Number(i.amount).toLocaleString()} is due on ${i.due_date}. You can pay in the client portal or reply here for help.`,
+      'reminder', { companyId, dedupeKey: `reminder:${i.id}` });
     await db.from('installments').update({ reminder_sent: true }).eq('id', i.id);
     sent++;
   }
-  await audit(req.user, 'sent_reminders', 'installments', null, { sent });
-  res.json({ sent });
-});
+  return sent;
+}
 
 export default router;

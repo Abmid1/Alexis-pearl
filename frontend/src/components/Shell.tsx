@@ -10,12 +10,14 @@ const NAV = [
   { href: '/pipeline',  id: '1b', label: 'Pipeline',       icon: 'kanban',    roles: ['owner', 'admin', 'agent'] },
   { href: '/deals',     id: '1c', label: 'Deals',          icon: 'briefcase', roles: ['owner', 'admin', 'agent'] },
   { href: '/inbox',     id: '1d', label: 'Inbox',          icon: 'chat',      roles: ['owner', 'admin', 'agent', 'marketing'] },
+  { href: '/viewings',  id: '',   label: 'Viewings',       icon: 'clock',     roles: ['owner', 'admin', 'agent'] },
   { href: '/marketing', id: '1e', label: 'Marketing',      icon: 'megaphone', roles: ['owner', 'admin', 'marketing', 'agent'] },
   { href: '/finance',   id: '1f', label: 'Finance',        icon: 'dollar',    roles: ['owner', 'admin', 'agent', 'marketing'] }, // staff can submit expenses; full view guards inside
   { href: '/plans',     id: '1g', label: 'Payment Plans',  icon: 'calendar',  roles: ['owner', 'admin', 'agent'] },
   { href: '/reports',   id: '1h', label: 'Reports',        icon: 'chart',     roles: ['owner', 'admin', 'agent', 'marketing'] },
   { href: '/kb',        id: '1i', label: 'Knowledge Base', icon: 'book',      roles: ['owner', 'admin', 'agent', 'marketing'] },
   { href: '/pm',        id: '1j', label: 'Property Mgmt',  icon: 'building',  roles: ['owner', 'admin'] },
+  { href: '/website',   id: '',   label: 'Website',        icon: 'globe',     roles: ['owner', 'admin', 'marketing'] },
   { href: '/clients',   id: '',   label: 'Clients',        icon: 'users',     roles: ['owner', 'admin'] },
   { href: '/team',      id: '',   label: 'Team',           icon: 'user',      roles: ['owner', 'admin'] },
   { href: '/audit',     id: '',   label: 'Audit Log',      icon: 'list',      roles: ['owner', 'admin'] },
@@ -40,7 +42,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const user = useUser();
   const path = usePathname();
   const router = useRouter();
-  const [alerts, setAlerts] = useState<{ inbox: number; approvals: number }>({ inbox: 0, approvals: 0 });
+  const [alerts, setAlerts] = useState<{ inbox: number; approvals: number; website: number }>({ inbox: 0, approvals: 0, website: 0 });
   const [showChangePw, setShowChangePw] = useState(false);
 
   useEffect(() => {
@@ -48,10 +50,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     api.dashboard().then((d) => setAlerts({
       inbox: d.departments?.inbox?.alert || 0,
       approvals: d.approvals?.length || 0,
+      website: d.departments?.website?.alert || 0,
     })).catch(() => {});
   }, [user, path]);
 
   if (!user) return null;
+  const companyName: string = user.company?.name || 'Bilt Africa';
+  const initials = companyName.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   const items = NAV.filter((n) => n.roles.includes(user.role));
   const go = (href: string) => router.push(href);
 
@@ -59,10 +64,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className="shell">
       <aside className="sidebar">
         <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.12)', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ width: 32, height: 32, borderRadius: 6, background: 'var(--orange)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: '#fff' }}>AP</div>
-          <div>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: '#fff' }}>Alexis Pearl</div>
-            <div style={{ fontSize: 10.5, color: '#A9BDD1' }}>Real Estate OS</div>
+          <div style={{ width: 32, height: 32, borderRadius: 6, background: 'var(--orange)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: '#fff' }}>{initials}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{companyName}</div>
+            <div style={{ fontSize: 10.5, color: '#A9BDD1' }}>Bilt Africa · Real Estate OS</div>
           </div>
         </div>
 
@@ -73,6 +78,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               {n.label}
               {n.href === '/inbox' && alerts.inbox > 0 && <span className="nav-badge">{alerts.inbox}</span>}
               {n.href === '/' && alerts.approvals > 0 && <span className="nav-badge">{alerts.approvals}</span>}
+              {n.href === '/viewings' && alerts.website > 0 && <span className="nav-badge">{alerts.website}</span>}
             </button>
           ))}
         </nav>

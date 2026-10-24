@@ -66,7 +66,15 @@ export default function KB() {
             {d.excerpt && <div className="muted" style={{ lineHeight: 1.6, marginBottom: 8 }}>{d.excerpt}…</div>}
             <div className="spread">
               <span className="muted" style={{ fontSize: 11 }}>{d.uploader?.name} · {timeAgo(d.created_at)}</span>
-              {isManager && <button className="btn btn-sm btn-red" onClick={async () => { await api.kb.remove(d.id); load(); }}>Delete</button>}
+              <div className="row" style={{ gap: 6 }}>
+                {isManager && !d.client_id && (
+                  <button className={`btn btn-sm${d.is_public ? ' btn-green' : ''}`} title="Public documents can answer customer questions on your website assistant"
+                    onClick={async () => { await api.kb.setPublic(d.id, !d.is_public); load(); }}>
+                    <I name="globe" size={12} /> {d.is_public ? 'On website' : 'Private'}
+                  </button>
+                )}
+                {isManager && <button className="btn btn-sm btn-red" onClick={async () => { await api.kb.remove(d.id); load(); }}>Delete</button>}
+              </div>
             </div>
           </div>
         ))}

@@ -1,12 +1,14 @@
 {
-  "name": "alexis-pearl-backend",
+  "name": "bilt-africa-backend",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
+    "dev:memory": "node scripts/memory-server.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

@@ -2,7 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Alexis Pearl — Real Estate OS',
+  title: 'Bilt Africa — Real Estate OS',
   description: 'One system for the whole company',
   manifest: '/manifest.json',
   icons: { icon: '/icon.svg' },
