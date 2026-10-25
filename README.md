@@ -39,7 +39,7 @@ npm run dev:memory         # optional: whole backend on an in-memory demo databa
 cd frontend
 copy .env.example .env.local
 npm install
-npm run dev                # http://localhost:3000  → workspace;  /s/alexis-pearl → public site
+npm run dev                # http://localhost:3100  → workspace;  /s/alexis-pearl → public site
 ```
 
 ## Demo logins (password: `demo1234`)
