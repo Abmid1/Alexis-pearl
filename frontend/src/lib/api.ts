@@ -133,6 +133,32 @@ export const api = {
     note: (id: string, staff_note: string) => patch(`/api/applications/${id}`, { staff_note }),
     documentUrl: (id: string, docId: string) => req(`/api/applications/${id}/documents/${docId}`),
   },
+  docRequests: {
+    list: (status = 'all') => req(`/api/document-requests?status=${encodeURIComponent(status)}`),
+    get: (id: string) => req(`/api/document-requests/${id}`),
+    setStatus: (id: string, b: any) => post(`/api/document-requests/${id}/status`, b),
+    upload: (id: string, b: any) => post(`/api/document-requests/${id}/files`, b),
+    fileUrl: (id: string, fileId: string) => req(`/api/document-requests/${id}/files/${fileId}`),
+    note: (id: string, staff_note: string) => patch(`/api/document-requests/${id}`, { staff_note }),
+  },
+  serviceRequests: {
+    list: (status = 'all') => req(`/api/service-requests?status=${encodeURIComponent(status)}`),
+    setStatus: (id: string, b: any) => post(`/api/service-requests/${id}/status`, b),
+    convert: (id: string, b: any = {}) => post(`/api/service-requests/${id}/convert`, b),
+    note: (id: string, staff_note: string) => patch(`/api/service-requests/${id}`, { staff_note }),
+  },
+  offers: {
+    list: () => req('/api/offers'),
+    create: (b: any) => post('/api/offers', b),
+    update: (id: string, b: any) => patch(`/api/offers/${id}`, b),
+    send: (id: string, notify = true) => post(`/api/offers/${id}/send`, { notify }),
+    withdraw: (id: string, notify = true) => post(`/api/offers/${id}/withdraw`, { notify }),
+  },
+  transactions: {
+    list: () => req('/api/transactions'),
+    create: (b: any) => post('/api/transactions', b),
+    update: (id: string, b: any) => patch(`/api/transactions/${id}`, b),
+  },
   company: {
     get: () => req('/api/company'),
     update: (b: any) => patch('/api/company', b),

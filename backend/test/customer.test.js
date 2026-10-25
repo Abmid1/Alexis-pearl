@@ -160,7 +160,7 @@ test('application → staff review → documents → decision, end to end', asyn
   assert.equal(up.status, 201, JSON.stringify(up.body));
   assert.equal(up.body.document.file_name, 'passwd.png', 'path segments stripped from the file name');
   const doc = rows('application_documents')[0];
-  assert.ok(doc.storage_path.startsWith(`${s.A.id}/${app.id}/`), 'stored under company/application');
+  assert.ok(doc.storage_path.startsWith(`${s.A.id}/applications/${app.id}/`), 'stored under company/applications/<id>');
   assert.ok(!doc.file_name.includes('/'));
   assert.equal(doc.mime_type, 'image/png');
   await call('POST', `${ACC}/applications/${app.id}/documents`, { token, body: { file_name: 'payslip', content_base64: PDF } });

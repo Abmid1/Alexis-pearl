@@ -39,6 +39,7 @@ export default async function SiteLayout({ children, params }: { children: React
     sells && { href: `${base}/properties?purpose=buy`, label: 'Buy' },
     rents && { href: `${base}/properties?purpose=rent`, label: 'Rent' },
     { href: `${base}/properties`, label: 'All listings' },
+    (c.services.some((x) => ['sell', 'valuation', 'management'].includes(x)) || c.services.includes('rent')) && { href: `${base}/services`, label: 'Services' },
     { href: `${base}/saved`, label: 'Saved' },
     { href: `${base}/track`, label: 'My requests' },
     { href: `${base}/account`, label: 'Account' },

@@ -4,6 +4,9 @@ import { PUBLIC_API } from '@/lib/publicApi';
 import { I } from '@/components/Icons';
 import PropertyCard from './PropertyCard';
 import SignIn from './SignIn';
+import CustomerDocuments from './CustomerDocuments';
+import CustomerOffers from './CustomerOffers';
+import CustomerProgress from './CustomerProgress';
 import { accountApi, session } from './session';
 
 const TZ = 'Africa/Accra';
@@ -11,7 +14,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleString('en-GB', { weekday: 's
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: TZ });
 const tone = (s: string) => (['confirmed', 'completed', 'approved'].includes(s) ? '' : ['requested', 'submitted', 'under_review', 'info_requested', 'new', 'in_progress'].includes(s) ? 'warn' : 'bad');
 
-type Tab = 'requests' | 'applications' | 'saved' | 'tenancy' | 'settings';
+type Tab = 'requests' | 'applications' | 'offers' | 'progress' | 'documents' | 'saved' | 'tenancy' | 'settings';
 
 /** Signed-in customer's portal for one agency. */
 export default function AccountPortal({ slug, companyName }: { slug: string; companyName: string }) {
@@ -29,7 +32,7 @@ export default function AccountPortal({ slug, companyName }: { slug: string; com
 
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab') as Tab | null;
-    if (t && ['requests', 'applications', 'saved', 'tenancy', 'settings'].includes(t)) setTab(t);
+    if (t && ['requests', 'applications', 'offers', 'progress', 'documents', 'saved', 'tenancy', 'settings'].includes(t)) setTab(t);
     if (!session.get(slug)) { setSignedIn(false); return; }
     load();
   }, [slug, load]);
@@ -49,6 +52,9 @@ export default function AccountPortal({ slug, companyName }: { slug: string; com
   const tabs: [Tab, string, number?][] = [
     ['requests', 'Requests & viewings', data.enquiries.length],
     ['applications', 'Applications', data.applications.length],
+    ...(data.offers ? [['offers', 'Offers', data.offers_awaiting || undefined] as [Tab, string, number?]] : []),
+    ...(data.transactions ? [['progress', 'Progress'] as [Tab, string]] : []),
+    ['documents', 'Documents', data.document_requests || undefined],
     ['saved', 'Saved homes', data.saved.length],
     ...(data.has_tenancy ? [['tenancy', 'My tenancy'] as [Tab, string]] : []),
     ['settings', 'Settings'],
@@ -113,6 +119,10 @@ export default function AccountPortal({ slug, companyName }: { slug: string; com
       {tab === 'saved' && (data.saved.length
         ? <div className="s-grid">{data.saved.map((p: any) => <PropertyCard key={p.id} slug={slug} p={p} />)}</div>
         : <Empty slug={slug} text="Tap the heart on any listing to save it to your account." />)}
+
+      {tab === 'offers' && <CustomerOffers slug={slug} companyName={companyName} onError={setErr} />}
+      {tab === 'progress' && <CustomerProgress slug={slug} companyName={companyName} onError={setErr} />}
+      {tab === 'documents' && <CustomerDocuments slug={slug} companyName={companyName} onError={setErr} />}
 
       {tab === 'tenancy' && <Tenancy slug={slug} companyName={companyName} onError={setErr} />}
 

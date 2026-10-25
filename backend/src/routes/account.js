@@ -11,6 +11,10 @@ import { validateAnswers, toPublicApplication, OPEN_STATUSES, CUSTOMER_UPLOAD_ST
 import { readUpload, storePrivate, signedUrl, removePrivate, FileError } from '../lib/files.js';
 import { audit } from '../lib/audit.js';
 import { toPublicLease, toPublicRentPayment, toPublicTicket, validateMaintenance } from '../lib/tenancy.js';
+import { publicCatalogue, toPublicDocumentRequest, DOC_OPEN } from '../lib/documents.js';
+import { toPublicOffer, effectiveStatus } from '../lib/offers.js';
+import { toPublicTransaction } from '../lib/transactions.js';
+import { makeReference } from '../lib/contacts.js';
 
 /**
  * Customer accounts on the public agency site: /api/public/:slug/account/…
@@ -22,6 +26,7 @@ const codeLimit = rateLimit({ name: 'otp-request', windowMs: 15 * 60000, max: 8 
 const verifyLimit = rateLimit({ name: 'otp-verify', windowMs: 15 * 60000, max: 20 });
 const uploadLimit = rateLimit({ name: 'doc-upload', windowMs: 60 * 60000, max: 30 });
 const maintLimit = rateLimit({ name: 'maintenance', windowMs: 60 * 60000, max: 20 });
+const docReqLimit = rateLimit({ name: 'doc-request', windowMs: 60 * 60000, max: 20 });
 
 router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
@@ -85,11 +90,14 @@ async function propsById(req, ids) {
 router.get('/overview', async (req, res) => {
   const enquiries = await myEnquiries(req);
   const ids = enquiries.map((e) => e.id);
-  const [{ data: views }, { data: apps }, saved, leaseCount] = await Promise.all([
+  const [{ data: views }, { data: apps }, saved, leaseCount, docCount, offerRows, txCount] = await Promise.all([
     ids.length ? req.tdb.from('viewings').select('*').in('enquiry_id', ids).order('starts_at') : { data: [] },
     req.tdb.from('applications').select('*').eq('client_id', req.client.id).order('created_at', { ascending: false }),
     savedList(req),
     req.tdb.from('leases').select('id', { count: 'exact', head: true }).eq('client_id', req.client.id),
+    req.tdb.from('document_requests').select('id', { count: 'exact', head: true }).eq('client_id', req.client.id),
+    req.tdb.from('offers').select('*').eq('client_id', req.client.id).neq('status', 'draft'),
+    req.tdb.from('transactions').select('id', { count: 'exact', head: true }).eq('client_id', req.client.id),
   ]);
   const props = await propsById(req, [...enquiries.map((e) => e.property_id), ...(apps || []).map((a) => a.property_id)]);
   const pub = (id) => { const p = props.get(id); return p ? { id: isPublic(p) ? p.id : null, title: p.title } : null; };
@@ -106,6 +114,10 @@ router.get('/overview', async (req, res) => {
     applications: (apps || []).map((a) => toPublicApplication(a, { property: pub(a.property_id) })),
     saved,
     has_tenancy: (leaseCount.count || 0) > 0,
+    document_requests: docCount.count || 0,
+    offers: (offerRows.data || []).length,
+    offers_awaiting: (offerRows.data || []).filter((o) => effectiveStatus(o) === 'sent').length,
+    transactions: txCount.count || 0,
   });
 });
 
@@ -220,7 +232,7 @@ router.post('/applications/:id/documents', uploadLimit, async (req, res) => {
     if ((count || 0) >= 20) return res.status(409).json({ error: 'You can upload up to 20 documents per application.' });
     const file = readUpload(req.body || {});
     const label = String(req.body?.label || '').trim().slice(0, 120) || null;
-    const path = await storePrivate(req.company.id, a.id, file);
+    const path = await storePrivate(req.company.id, `applications/${a.id}`, file);
     const { data: doc, error } = await req.tdb.from('application_documents').insert({
       application_id: a.id, storage_path: path, file_name: file.fileName, mime_type: file.mime, size_bytes: file.size, label, uploaded_by: 'customer',
     }).select().single();
@@ -297,6 +309,118 @@ router.post('/maintenance', maintLimit, async (req, res) => {
     await audit({ id: null, name: req.client.name, company_id: req.company.id }, 'maintenance_reported', 'ticket', ticket.id, { title: value.title, property: lease.property?.title });
     res.status(201).json({ ticket: toPublicTicket(ticket) });
   } catch (e) { fail(res, e); }
+});
+
+// ── document requests (payment statement, allocation letter, permission to build…) ──
+router.get('/documents', async (req, res) => {
+  const { data: reqs } = await req.tdb.from('document_requests').select('*').eq('client_id', req.client.id).order('created_at', { ascending: false });
+  const ids = (reqs || []).map((r2) => r2.id);
+  const { data: files } = ids.length
+    ? await req.tdb.from('document_request_files').select('*').in('request_id', ids).order('created_at')
+    : { data: [] };
+  const props = await propsById(req, (reqs || []).map((r2) => r2.property_id));
+  res.json({
+    catalogue: publicCatalogue(req.company),
+    requests: (reqs || []).map((r2) => toPublicDocumentRequest(r2, {
+      property: props.get(r2.property_id) || null,
+      files: (files || []).filter((f) => f.request_id === r2.id),
+    })),
+  });
+});
+
+router.post('/documents', docReqLimit, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const idem = typeof body.idempotency_key === 'string' && /^[\w-]{8,64}$/.test(body.idempotency_key) ? body.idempotency_key : null;
+    if (idem) {
+      const { data: prior } = await req.tdb.from('document_requests').select('*').eq('idempotency_key', idem).eq('client_id', req.client.id).maybeSingle();
+      if (prior) return res.json({ request: toPublicDocumentRequest(prior), duplicate: true });
+    }
+    const entry = publicCatalogue(req.company).find((d) => d.key === body.doc_key);
+    if (!entry) return res.status(404).json({ error: 'That document is not offered by this agency' });
+    // a property may be named, but only one this customer is actually connected to
+    let property = null;
+    if (body.property_id) {
+      const { data: p } = await req.tdb.from('properties').select('id,title').eq('id', body.property_id).maybeSingle();
+      if (!p) return res.status(404).json({ error: 'Property not found' });
+      const [{ count: leased }, { count: applied }] = await Promise.all([
+        req.tdb.from('leases').select('id', { count: 'exact', head: true }).eq('client_id', req.client.id).eq('property_id', p.id),
+        req.tdb.from('applications').select('id', { count: 'exact', head: true }).eq('client_id', req.client.id).eq('property_id', p.id),
+      ]);
+      if (!(leased || 0) && !(applied || 0)) return res.status(403).json({ error: 'You can only request documents for a property you rent or have applied for.' });
+      property = p;
+    }
+    const { count: open } = await req.tdb.from('document_requests').select('id', { count: 'exact', head: true }).eq('client_id', req.client.id).in('status', DOC_OPEN);
+    if ((open || 0) >= 10) return res.status(409).json({ error: 'You already have several open document requests. Please wait for the agency.' });
+    const { data: created, error } = await req.tdb.from('document_requests').insert({
+      reference: makeReference(), client_id: req.client.id, property_id: property?.id || null,
+      doc_key: entry.key, doc_label: entry.label, category: entry.category, fee: entry.fee || 0,
+      turnaround_days: entry.turnaround_days ?? null,
+      customer_note: String(body.note || '').trim().slice(0, 1000) || null, idempotency_key: idem,
+    }).select().single();
+    if (error) {
+      if (error.code === '23505' && idem) {
+        const { data: prior } = await req.tdb.from('document_requests').select('*').eq('idempotency_key', idem).maybeSingle();
+        if (prior) return res.json({ request: toPublicDocumentRequest(prior), duplicate: true });
+      }
+      throw new Error(error.message);
+    }
+    await audit({ id: null, name: req.client.name, company_id: req.company.id }, 'document_requested', 'document_request', created.id, { reference: created.reference, document: entry.label });
+    res.status(201).json({ request: toPublicDocumentRequest(created, { property }) });
+  } catch (e) { fail(res, e); }
+});
+
+router.post('/documents/:id/cancel', async (req, res) => {
+  const { data: r2 } = await req.tdb.from('document_requests').select('*').eq('id', req.params.id).eq('client_id', req.client.id).maybeSingle();
+  if (!r2) return res.status(404).json({ error: 'Request not found' });
+  if (!DOC_OPEN.includes(r2.status)) return res.status(409).json({ error: 'This request can no longer be cancelled.' });
+  const { data } = await req.tdb.from('document_requests').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', r2.id).select().single();
+  await audit({ id: null, name: req.client.name, company_id: req.company.id }, 'document_request_cancelled', 'document_request', r2.id, { reference: r2.reference });
+  res.json({ request: toPublicDocumentRequest(data) });
+});
+
+/** 60-second link to a document the agency issued to this customer. */
+router.get('/documents/:id/files/:fileId', async (req, res) => {
+  try {
+    const { data: r2 } = await req.tdb.from('document_requests').select('id,reference').eq('id', req.params.id).eq('client_id', req.client.id).maybeSingle();
+    if (!r2) return res.status(404).json({ error: 'Request not found' });
+    const { data: f } = await req.tdb.from('document_request_files').select('*').eq('id', req.params.fileId).eq('request_id', r2.id).maybeSingle();
+    if (!f) return res.status(404).json({ error: 'Document not found' });
+    const url = await signedUrl(f.storage_path, 60);
+    await audit({ id: null, name: req.client.name, company_id: req.company.id }, 'document_accessed', 'document_request_file', f.id, { by: 'customer', reference: r2.reference });
+    res.json({ url, expires_in: 60 });
+  } catch (e) { fail(res, e); }
+});
+
+// ── offers ──
+router.get('/offers', async (req, res) => {
+  const { data: rows } = await req.tdb.from('offers').select('*').eq('client_id', req.client.id).neq('status', 'draft').order('created_at', { ascending: false });
+  const props = await propsById(req, (rows || []).map((o) => o.property_id));
+  res.json({ offers: (rows || []).map((o) => toPublicOffer(o, { property: props.get(o.property_id) || null })) });
+});
+
+/** Accept or decline. This records intent only — it is not a contract. */
+router.post('/offers/:id/respond', async (req, res) => {
+  const accept = req.body?.accept;
+  if (typeof accept !== 'boolean') return res.status(400).json({ error: 'Choose accept or decline' });
+  const { data: o } = await req.tdb.from('offers').select('*').eq('id', req.params.id).eq('client_id', req.client.id).maybeSingle();
+  if (!o) return res.status(404).json({ error: 'Offer not found' });
+  if (effectiveStatus(o) !== 'sent') return res.status(409).json({ error: 'This offer is no longer open for a response.' });
+  const now = new Date().toISOString();
+  const { data } = await req.tdb.from('offers').update({
+    status: accept ? 'accepted' : 'declined', responded_at: now, updated_at: now,
+    customer_response_note: String(req.body?.note || '').trim().slice(0, 1000) || null,
+  }).eq('id', o.id).eq('status', 'sent').select().maybeSingle();
+  if (!data) return res.status(409).json({ error: 'This offer is no longer open for a response.' });
+  await audit({ id: null, name: req.client.name, company_id: req.company.id }, accept ? 'offer_accepted' : 'offer_declined', 'offer', o.id, { reference: o.reference, amount: o.amount });
+  res.json({ offer: toPublicOffer(data) });
+});
+
+// ── transaction progress ──
+router.get('/transactions', async (req, res) => {
+  const { data: rows } = await req.tdb.from('transactions').select('*').eq('client_id', req.client.id).order('created_at', { ascending: false });
+  const props = await propsById(req, (rows || []).map((t) => t.property_id));
+  res.json({ transactions: (rows || []).map((t) => toPublicTransaction(t, { property: props.get(t.property_id) || null })) });
 });
 
 export default router;

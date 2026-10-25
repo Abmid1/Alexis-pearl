@@ -34,8 +34,17 @@ const DEFAULTS = {
   payments: { provider: null, provider_reference: null },
   leases: { status: 'active', unit_id: null },
   tickets: { status: 'open', description: null, owner_id: null, unit_id: null, client_id: null, property_id: null },
+  document_requests: { status: 'requested', fee: 0, customer_note: null, customer_message: null, staff_note: null, idempotency_key: null, property_id: null, turnaround_days: null, category: null },
+  service_requests: { status: 'new', details: {}, client_id: null, customer_message: null, staff_note: null, converted_property_id: null, idempotency_key: null },
+  offers: { status: 'draft', currency: 'GHS', terms: null, expires_at: null, responded_at: null, customer_response_note: null, staff_note: null, application_id: null, deal_id: null },
+  transactions: { status: 'active', milestones: [], customer_message: null, staff_note: null, property_id: null, deal_id: null },
 };
 // migration 002 default questions
+DEFAULTS.companies.document_catalogue = [
+  { key: 'payment_statement', label: 'Payment statement', category: 'financial', description: 'Payment history and balance.', turnaround_days: 3, fee: 0, enabled: true },
+  { key: 'clearance_certificate', label: 'Clearance certificate', category: 'financial', description: 'Confirms payments are cleared.', turnaround_days: 7, fee: 250, enabled: true },
+  { key: 'retired_doc', label: 'Retired document', category: 'other', description: 'No longer offered.', turnaround_days: 5, fee: 0, enabled: false },
+];
 DEFAULTS.companies.application_form = [
   { key: 'move_in', label: 'When would you like to move in?', type: 'date', required: false },
   { key: 'occupants', label: 'How many people will live in the property?', type: 'number', required: false },
@@ -43,7 +52,8 @@ DEFAULTS.companies.application_form = [
 
 const NOT_NULL_COMPANY = ['clients', 'leads', 'properties', 'units', 'deals', 'payment_plans', 'payments', 'invoices',
   'expenses', 'conversations', 'campaigns', 'documents', 'leases', 'tickets', 'report_runs', 'enquiries', 'viewings',
-  'customer_otps', 'saved_properties', 'applications', 'application_documents'];
+  'customer_otps', 'saved_properties', 'applications', 'application_documents',
+  'document_requests', 'document_request_files', 'service_requests', 'offers', 'transactions'];
 
 const UNIQUE = {
   users: [['email']], companies: [['slug']], enquiries: [['reference'], ['company_id', 'idempotency_key']],
@@ -51,6 +61,10 @@ const UNIQUE = {
   saved_properties: [['client_id', 'property_id']], applications: [['reference'], ['company_id', 'idempotency_key']],
   application_documents: [['storage_path']], payments: [['provider', 'provider_reference']],
   clients: [['company_id', 'verified_phone'], ['company_id', 'verified_email']],
+  document_requests: [['reference'], ['company_id', 'idempotency_key']],
+  document_request_files: [['storage_path']],
+  service_requests: [['reference'], ['company_id', 'idempotency_key']],
+  offers: [['reference']], transactions: [['reference']],
 };
 
 const err = (code, message) => ({ code, message });

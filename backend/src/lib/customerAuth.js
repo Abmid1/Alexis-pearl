@@ -147,6 +147,19 @@ export function toCustomer(c) {
   };
 }
 
+/** Soft check: returns the signed-in customer for this company, or null. Never throws. */
+export async function optionalCustomer(req) {
+  const h = req.headers.authorization || '';
+  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+  if (!token) return null;
+  try {
+    const p = jwt.verify(token, SECRET(), { audience: 'customer' });
+    if (p.kind !== 'customer' || p.company_id !== req.company.id) return null;
+    const { data } = await req.tdb.from('clients').select('*').eq('id', p.client_id).maybeSingle();
+    return data || null;
+  } catch { return null; }
+}
+
 /**
  * Middleware for /api/public/:slug/account/* (after the public router resolved req.company).
  * The session must belong to THIS company; a token from another agency's site is refused.

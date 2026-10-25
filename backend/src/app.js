@@ -23,6 +23,7 @@ import viewingRoutes from './routes/viewings.js';
 import enquiryRoutes from './routes/enquiries.js';
 import companyRoutes from './routes/company.js';
 import applicationRoutes from './routes/applications.js';
+import staffRequestRoutes from './routes/requests.js';
 
 // Express 4 does not catch rejected promises from async handlers; route them to the
 // error handler instead of leaving the request hanging (same idea as express-async-errors).
@@ -91,6 +92,7 @@ export function createApp() {
   app.use('/api/enquiries', enquiryRoutes);
   app.use('/api/company', companyRoutes);
   app.use('/api/applications', applicationRoutes);
+  app.use('/api', staffRequestRoutes);
   app.use('/api', miscRoutes);
 
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));

@@ -23,6 +23,7 @@ export default function Website() {
   const hours = c.viewing_hours || { days: [1, 2, 3, 4, 5, 6], start: '09:00', end: '16:00', slot_minutes: 45, min_notice_hours: 24, max_days_ahead: 21, cancel_cutoff_hours: 2 };
   const setH = (k: string, v: any) => set('viewing_hours', { ...hours, [k]: v });
   const setQ = (i: number, patch: any) => set('application_form', (c.application_form || []).map((q: any, j: number) => (j === i ? { ...q, ...patch } : q)));
+  const setD = (i: number, patch: any) => set('document_catalogue', (c.document_catalogue || []).map((d: any, j: number) => (j === i ? { ...d, ...patch } : d)));
   const link = `${origin}/s/${c.slug}`;
 
   const save = async (e: React.FormEvent) => {
@@ -31,6 +32,7 @@ export default function Website() {
       const { id, ...body } = c;
       if (user?.role !== 'owner') delete body.custom_domain;
       body.application_form = (body.application_form || []).filter((q: any) => String(q.label || '').trim());
+      body.document_catalogue = (body.document_catalogue || []).filter((d: any) => String(d.label || '').trim());
       if (user?.role !== 'owner') delete body.slug;
       setC(await api.company.update(body));
       setMsg({ ok: true, text: 'Saved — your website is updated.' });
@@ -150,6 +152,32 @@ export default function Website() {
         ))}
         {isManager && (c.application_form || []).length < 25 && (
           <button type="button" className="btn btn-sm" onClick={() => set('application_form', [...(c.application_form || []), { label: '', type: 'text', required: false }])}>+ Add question</button>
+        )}
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="section-title" style={{ marginTop: 0 }}>Documents customers can request</div>
+        <div className="muted" style={{ marginBottom: 10 }}>Customers request these from their account. You prepare and upload each one by hand under Requests. Turnaround is your usual time, not a promise.</div>
+        {(c.document_catalogue || []).map((d: any, i: number) => (
+          <div key={i} className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'flex-end', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+            <div className="form-group" style={{ flex: '2 1 180px', marginBottom: 0 }}><label className="form-label">Document</label>
+              <input className="form-input" value={d.label} disabled={!isManager} onChange={(e) => setD(i, { label: e.target.value })} /></div>
+            <div className="form-group" style={{ flex: '1 1 120px', marginBottom: 0 }}><label className="form-label">Category</label>
+              <select className="form-select" value={d.category} disabled={!isManager} onChange={(e) => setD(i, { category: e.target.value })}>
+                {['financial', 'legal', 'construction', 'other'].map((x) => <option key={x} value={x}>{x}</option>)}
+              </select></div>
+            <div className="form-group" style={{ flex: '0 1 100px', marginBottom: 0 }}><label className="form-label">Days</label>
+              <input className="form-input" type="number" min={0} value={d.turnaround_days ?? ''} disabled={!isManager} onChange={(e) => setD(i, { turnaround_days: e.target.value === '' ? null : Number(e.target.value) })} /></div>
+            <div className="form-group" style={{ flex: '0 1 120px', marginBottom: 0 }}><label className="form-label">Fee (GHS)</label>
+              <input className="form-input" type="number" min={0} value={d.fee ?? 0} disabled={!isManager} onChange={(e) => setD(i, { fee: Number(e.target.value) })} /></div>
+            <label className="row" style={{ gap: 4, fontSize: 12, paddingBottom: 10 }}><input type="checkbox" checked={d.enabled !== false} disabled={!isManager} onChange={(e) => setD(i, { enabled: e.target.checked })} /> Offered</label>
+            {isManager && <button type="button" className="btn btn-sm btn-red" style={{ marginBottom: 4 }} onClick={() => set('document_catalogue', c.document_catalogue.filter((_: any, j: number) => j !== i))}>Remove</button>}
+            <div className="form-group" style={{ flex: '1 1 100%', marginBottom: 0 }}><label className="form-label">Description shown to customers</label>
+              <input className="form-input" value={d.description || ''} disabled={!isManager} onChange={(e) => setD(i, { description: e.target.value })} /></div>
+          </div>
+        ))}
+        {isManager && (c.document_catalogue || []).length < 40 && (
+          <button type="button" className="btn btn-sm" onClick={() => set('document_catalogue', [...(c.document_catalogue || []), { label: '', category: 'other', turnaround_days: 7, fee: 0, enabled: true, description: '' }])}>+ Add document</button>
         )}
       </div>
 

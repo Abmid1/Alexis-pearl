@@ -9,6 +9,8 @@ import { toPublicViewing } from '../lib/viewings.js';
 import { contactMatches } from '../lib/contacts.js';
 import { audit } from '../lib/audit.js';
 import { assistantReply } from '../lib/assistant.js';
+import { enabledKinds, validateDetails, summarise, SERVICE_KINDS } from '../lib/services.js';
+import { optionalCustomer } from '../lib/customerAuth.js';
 import accountRoutes from './account.js';
 
 /**
@@ -267,6 +269,60 @@ router.post('/assistant', aiLimit, async (req, res) => {
     if (!clean.length || clean[clean.length - 1].role !== 'user') return res.status(400).json({ error: 'Ask a question first' });
     const contextIds = (Array.isArray(req.body?.property_ids) ? req.body.property_ids : []).filter((x) => typeof x === 'string').slice(0, 4);
     res.json(await assistantReply(req.company, clean, { contextIds }));
+  } catch (e) { fail(res, e); }
+});
+
+/** Services this agency offers to owners and landlords, with their forms. */
+router.get('/services', readLimit, async (req, res) => {
+  publicCache(res);
+  res.json({ services: enabledKinds(req.company) });
+});
+
+/**
+ * Landlord / owner service request (list a property, valuation, management, relocation).
+ * Open to anyone, like an enquiry; linked to the customer's account when signed in.
+ * It becomes a normal CRM lead, and is tracked with the same reference as any enquiry.
+ */
+router.post('/services', writeLimit, async (req, res) => {
+  noStore(res);
+  try {
+    const body = req.body || {};
+    if (body.website) return res.json({ ok: true, reference: null });
+    const kind = body.kind;
+    if (!SERVICE_KINDS[kind]) return res.status(404).json({ error: 'Unknown service' });
+    if (!enabledKinds(req.company).some((k) => k.key === kind)) {
+      return res.status(409).json({ error: `${req.company.name} does not offer this service.` });
+    }
+    const { details, errors } = validateDetails(kind, body.details);
+    if (errors.length) return res.status(400).json({ error: errors.join('. ') });
+
+    const idem = typeof body.idempotency_key === 'string' && /^[\w-]{8,64}$/.test(body.idempotency_key) ? body.idempotency_key : null;
+    if (idem) {
+      const { data: prior } = await req.tdb.from('service_requests').select('reference').eq('idempotency_key', idem).maybeSingle();
+      if (prior) return res.json({ ok: true, duplicate: true, reference: prior.reference });
+    }
+    const label = SERVICE_KINDS[kind].label;
+    const r2 = await submitEnquiry(req.company, { ...body, message: `${label}
+${summarise(kind, details)}${body.message ? `
+
+${body.message}` : ''}` }, {
+      kind: 'service', source: 'website', describe: () => label,
+    });
+    if (r2.duplicate) return res.json({ ok: true, duplicate: true, reference: r2.enquiry.reference });
+
+    const customer = await optionalCustomer(req);
+    const { data: created, error } = await req.tdb.from('service_requests').insert({
+      reference: r2.enquiry.reference, kind, client_id: customer?.id || null,
+      lead_id: r2.lead.id, enquiry_id: r2.enquiry.id,
+      name: r2.enquiry.name, phone: r2.enquiry.phone, email: r2.enquiry.email,
+      details, idempotency_key: idem,
+    }).select().single();
+    if (error) throw error;
+    await audit(null, 'service_requested', 'service_request', created.id, { reference: created.reference, kind }, req.company.id);
+    res.status(201).json({
+      ok: true, reference: created.reference,
+      message: `Thank you — your ${label.toLowerCase()} request has been sent to ${req.company.name}. Keep your reference to check for replies.`,
+    });
   } catch (e) { fail(res, e); }
 });
 

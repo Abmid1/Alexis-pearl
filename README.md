@@ -20,6 +20,7 @@ In Supabase → SQL Editor, run **in order**:
 1. `backend/scripts/schema.sql`. **Fresh installs only: it drops every table.**
 2. `backend/scripts/migrations/001_multi_company_public_site.sql`. Safe on an existing database. It is additive, and it attaches all existing data to the company `alexis-pearl`.
 3. `backend/scripts/migrations/002_customer_portal_applications.sql`. Adds customer sign-in, saved homes, applications, a **private** storage bucket for documents, and verified payments.
+4. `backend/scripts/migrations/003_documents_services_offers.sql`. Adds document requests, landlord and owner service requests, offers, and transaction milestones.
 
 Open each file in VS Code, copy all of its text, paste it into a new SQL Editor query and click Run. Pasting the file path does not work. Each file has a matching `.down.sql` rollback. Back up first, because rollbacks delete the data those migrations added.
 
@@ -30,7 +31,7 @@ copy .env.example .env     # fill in SUPABASE_URL, SUPABASE_SERVICE_KEY, JWT_SEC
 npm install
 npm run seed               # demo data for two agencies (fresh database only)
 npm run dev                # http://localhost:5000
-npm test                   # 73 tests, no database needed
+npm test                   # 83 tests, no database needed
 npm run dev:memory         # optional: whole backend on an in-memory demo database, no Supabase
 ```
 
@@ -95,6 +96,22 @@ A customer whose phone or email matches a client an agency has given a lease see
 
 Rent figures are derived from recorded payments, not a separate schedule, and are labelled that way. There is no online rent payment for leases yet.
 
+## Document requests
+Customers ask the agency for official paperwork (payment statement, allocation letter, permission to build…) from their account.
+- The catalogue is **per agency and fully editable** under Website → Documents customers can request. Each entry has a name, category, usual turnaround and fee in GHS. Bilt Africa does not decide what documents exist or what they cost.
+- Requests appear under Requests → Document requests. Staff upload the finished document; it cannot be marked ready before a file is attached.
+- Files use the same private storage as applications, with 60-second links and every view logged.
+- A customer may only name a property they rent or have applied for.
+
+## Landlord and owner services
+A public page at `/s/<slug>/services` offers what the agency has switched on: list my property, valuation, property management, relocation help. Each has its own short form.
+- A submission becomes a normal CRM lead with an inbox conversation, and is tracked with the same reference as any enquiry.
+- Staff can turn a "list my property" submission into a **draft** listing in one click. It is never published automatically, and nothing claims ownership or title has been checked.
+
+## Offers and progress
+- **Offers** are recorded by a manager, start as a draft, and only reach the customer when sent. The customer accepts or declines in their account. Every view says plainly that this records intent and is **not a contract** — nothing is binding until an agreement is signed. Bilt Africa performs no conveyancing, escrow or title verification.
+- **Progress** gives the customer a short list of milestones for a sale or tenancy, ticked off by staff, linked to the existing CRM deal rather than duplicating it.
+
 ## Payments (Paystack)
 - An installment is marked paid only after Paystack's signed webhook arrives **and** the backend re-checks the transaction with Paystack. The check covers amount, currency, company and installment. A redirect alone never counts.
 - Set the webhook URL in the Paystack dashboard to `https://<backend>/api/webhooks/paystack`.
@@ -149,7 +166,9 @@ The stand-in is not Postgres. RLS, the exclusion constraints and the migration i
 - **Uploaded documents are not scanned for malware.** The format allow-list limits the risk. Add a scanning service before scaling.
 - **Rate limits are per server instance**, held in memory. Use Redis or Upstash if you run several instances.
 - **Property photos are URLs.** There is no upload yet.
-- **Not built:** offers and transaction milestones, landlord property submission, document-request services (e.g. requesting an NOC or clearance certificate), and online rent payment for leases. The applications and tenancy modules are the pattern for adding them.
+- **Online rent payment for leases is not built.** Paystack covers sale installments only.
+- **Document fees are not collected online.** The fee is displayed and the agency arranges payment.
+- **Building the frontend while `npm run dev` is running** corrupts the shared `.next` folder. Build with `NEXT_DIST_DIR=.next-build npx next build` instead, or stop the dev server first.
 
 ## Cron (runs inside the backend, Africa/Accra time)
 - Daily 8am: WhatsApp payment reminders per company (de-duplicated), plus the overdue sweep

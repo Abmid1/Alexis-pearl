@@ -8,7 +8,8 @@ import { db } from '../db.js';
  *    capped at 8 MB decoded.
  *  - The type is decided by the file's real leading bytes ("magic numbers"), not by
  *    its name or the type the browser claims. Only PDF, JPEG, PNG and WebP are accepted.
- *  - Files go to a PRIVATE Supabase Storage bucket under <company>/<application>/<random>.
+ *  - Files go to a PRIVATE Supabase Storage bucket under <company>/<scope>/<random>,
+ *    where scope is e.g. "applications/<id>" or "document-requests/<id>".
  *    They are only ever handed out as signed URLs that expire after 60 seconds,
  *    created after the caller's access has been checked.
  *  - No malware scanner is wired in. Accepting only these formats (no Office files,
@@ -46,8 +47,9 @@ export function readUpload({ content_base64: b64, file_name: name } = {}) {
 }
 
 /** Store a validated file privately. Returns the storage path. */
-export async function storePrivate(companyId, applicationId, file) {
-  const path = `${companyId}/${applicationId}/${randomUUID()}.${file.ext}`;
+export async function storePrivate(companyId, scope, file) {
+  const safeScope = String(scope).replace(/[^\w/-]/g, '');
+  const path = `${companyId}/${safeScope}/${randomUUID()}.${file.ext}`;
   const { error } = await db.storage.from(BUCKET).upload(path, file.buffer, { contentType: file.mime, upsert: false });
   if (error) throw new Error(`storage upload failed: ${error.message}`);
   return path;

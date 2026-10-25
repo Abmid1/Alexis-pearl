@@ -12,6 +12,7 @@ const NAV = [
   { href: '/inbox',     id: '1d', label: 'Inbox',          icon: 'chat',      roles: ['owner', 'admin', 'agent', 'marketing'] },
   { href: '/viewings',  id: '',   label: 'Viewings',       icon: 'clock',     roles: ['owner', 'admin', 'agent'] },
   { href: '/applications', id: '', label: 'Applications',  icon: 'doc',       roles: ['owner', 'admin', 'agent'] },
+  { href: '/requests',  id: '',   label: 'Requests',       icon: 'paperclip', roles: ['owner', 'admin', 'agent'] },
   { href: '/marketing', id: '1e', label: 'Marketing',      icon: 'megaphone', roles: ['owner', 'admin', 'marketing', 'agent'] },
   { href: '/finance',   id: '1f', label: 'Finance',        icon: 'dollar',    roles: ['owner', 'admin', 'agent', 'marketing'] }, // staff can submit expenses; full view guards inside
   { href: '/plans',     id: '1g', label: 'Payment Plans',  icon: 'calendar',  roles: ['owner', 'admin', 'agent'] },

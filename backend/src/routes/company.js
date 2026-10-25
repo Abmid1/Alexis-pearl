@@ -4,12 +4,13 @@ import { auth, roles, STAFF, MANAGERS } from '../middleware/auth.js';
 import { audit } from '../lib/audit.js';
 import { DEFAULT_HOURS } from '../lib/scheduling.js';
 import { validateForm } from '../lib/applications.js';
+import { validateCatalogue } from '../lib/documents.js';
 
 /** The signed-in user's company: public website + branding settings. */
 const router = Router();
 router.use(auth, roles(...STAFF));
 
-const PUBLIC_FIELDS = 'id,slug,name,custom_domain,public_enabled,logo_url,brand_color,tagline,about,contact_phone,contact_email,whatsapp,address,office_hours,socials,services,viewing_hours,application_form';
+const PUBLIC_FIELDS = 'id,slug,name,custom_domain,public_enabled,logo_url,brand_color,tagline,about,contact_phone,contact_email,whatsapp,address,office_hours,socials,services,viewing_hours,application_form,document_catalogue';
 const SERVICES = ['buy', 'rent', 'sell', 'land', 'management', 'valuation'];
 const SOCIALS = ['instagram', 'facebook', 'tiktok', 'x', 'linkedin', 'youtube', 'website'];
 
@@ -66,6 +67,10 @@ router.patch('/', roles(...MANAGERS), async (req, res) => {
   if ('application_form' in b) {
     const { form, errors: fe } = validateForm(b.application_form);
     if (fe.length) errors.push(...fe); else patch.application_form = form;
+  }
+  if ('document_catalogue' in b) {
+    const { catalogue, errors: ce } = validateCatalogue(b.document_catalogue);
+    if (ce.length) errors.push(...ce); else patch.document_catalogue = catalogue;
   }
   if (errors.length) return res.status(400).json({ error: errors.join('. ') });
   const { data, error } = await db.from('companies').update(patch).eq('id', req.user.company_id).select(PUBLIC_FIELDS).single();
