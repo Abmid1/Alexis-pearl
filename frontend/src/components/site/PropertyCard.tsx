@@ -16,34 +16,68 @@ export function Placeholder({ text = 'Photos coming soon' }: { text?: string }) 
   );
 }
 
-/** Listing card. The whole card links to the detail page; the save button sits above the link. */
-export default function PropertyCard({ slug, p, priority = false }: { slug: string; p: PublicProperty; priority?: boolean }) {
+function Facts({ p, light = false }: { p: PublicProperty; light?: boolean }) {
+  return (
+    <div className={light ? 's-ocard-meta' : 's-facts'}>
+      {p.bedrooms != null && <span><I name="bed" size={15} /> {p.bedrooms} {p.bedrooms === 1 ? 'bed' : 'beds'}</span>}
+      {p.bathrooms != null && <span><I name="bath" size={15} /> {p.bathrooms} {p.bathrooms === 1 ? 'bath' : 'baths'}</span>}
+      {p.size_sqm != null && <span><I name="ruler" size={15} /> {p.size_sqm} m²</span>}
+      {p.bedrooms == null && p.bathrooms == null && p.property_type && <span><I name="home" size={14} /> {label(p.property_type)}</span>}
+    </div>
+  );
+}
+
+/**
+ * Listing card.
+ * `overlay` is the search-page style: photo fills the card with the details on top.
+ * The default style keeps the photo above a white body, used on the homepage.
+ */
+export default function PropertyCard({ slug, p, priority = false, overlay = false }: {
+  slug: string; p: PublicProperty; priority?: boolean; overlay?: boolean;
+}) {
   const href = propertyPath(slug, p);
   const tone = availabilityTone(p.availability.code);
-  const price = fmtPrice(p);
-  const [amount, period] = price.split(' / ');
+  const [amount, period] = fmtPrice(p).split(' / ');
+  const img = p.images[0];
+  const badges = (
+    <div className="s-badges">
+      <span className="s-badge">{p.purpose === 'rent' ? 'For rent' : 'For sale'}</span>
+      {p.availability.code !== 'available' && <span className={`s-badge s-badge-${tone}`}>{p.availability.label}</span>}
+    </div>
+  );
+
+  if (overlay) {
+    return (
+      <article className="s-ocard">
+        {img
+          ? <img src={img} alt="" loading={priority ? 'eager' : 'lazy'} decoding="async" sizes="(min-width:1280px) 25vw, (min-width:1000px) 33vw, (min-width:560px) 50vw, 100vw" />
+          : <Placeholder />}
+        {badges}
+        <SaveButton slug={slug} id={p.id} title={p.title} />
+        <div className="s-ocard-body">
+          <div className="s-ocard-price">{amount}{period && <small> / {period}</small>}</div>
+          <h3 className="s-ocard-title"><a href={href}>{p.title}</a></h3>
+          {placeLine(p) && <div className="s-ocard-meta"><span><I name="pin" size={14} /> {placeLine(p)}</span></div>}
+          <Facts p={p} light />
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article className="s-card">
       <div className="s-card-media">
-        {p.images[0]
-          ? <img src={p.images[0]} alt="" loading={priority ? 'eager' : 'lazy'} decoding="async" sizes="(min-width:1024px) 33vw, (min-width:640px) 50vw, 100vw" />
+        {img
+          ? <img src={img} alt="" loading={priority ? 'eager' : 'lazy'} decoding="async" sizes="(min-width:1024px) 33vw, (min-width:640px) 50vw, 100vw" />
           : <Placeholder />}
-        <div className="s-badges">
-          <span className="s-badge">{p.purpose === 'rent' ? 'For rent' : 'For sale'}</span>
-          {p.availability.code !== 'available' && <span className={`s-badge s-badge-${tone}`}>{p.availability.label}</span>}
-        </div>
+        {badges}
         <SaveButton slug={slug} id={p.id} title={p.title} />
       </div>
       <div className="s-card-body">
         <div className="s-card-price">{amount}{period && <small> / {period}</small>}</div>
         <h3 className="s-card-title"><a href={href}>{p.title}</a></h3>
         {placeLine(p) && <div className="s-card-place"><I name="pin" size={14} /> {placeLine(p)}</div>}
-        <div className="s-facts">
-          {p.bedrooms != null && <span><I name="bed" size={15} /> {p.bedrooms} {p.bedrooms === 1 ? 'bed' : 'beds'}</span>}
-          {p.bathrooms != null && <span><I name="bath" size={15} /> {p.bathrooms} {p.bathrooms === 1 ? 'bath' : 'baths'}</span>}
-          {p.property_type && <span><I name="home" size={14} /> {label(p.property_type)}</span>}
-          {p.furnishing && <span><I name="sofa" size={15} /> {label(p.furnishing)}</span>}
-        </div>
+        <Facts p={p} />
       </div>
     </article>
   );
