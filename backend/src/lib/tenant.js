@@ -17,6 +17,7 @@ export const TENANT_TABLES = new Set([
   'users', 'clients', 'leads', 'properties', 'units', 'deals', 'payment_plans', 'payments',
   'invoices', 'expenses', 'conversations', 'campaigns', 'documents', 'leases', 'tickets',
   'report_runs', 'outbox', 'audit_log', 'enquiries', 'viewings',
+  'customer_otps', 'saved_properties', 'applications', 'application_documents',
 ]);
 
 export function tenantDb(companyId, base = db) {

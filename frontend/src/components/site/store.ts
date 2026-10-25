@@ -24,6 +24,12 @@ export const saved = {
     window.dispatchEvent(new CustomEvent('bilt:saved', { detail: { slug } }));
     return next.includes(id);
   },
+  /** Add ids saved on the customer's account (other devices) without firing a reload event. */
+  merge(slug: string, ids: string[]) {
+    const cur = saved.list(slug);
+    const add = ids.filter((x) => !cur.includes(x));
+    if (add.length) write(KEY(slug, 'saved'), [...cur, ...add].slice(0, 50));
+  },
 };
 
 /** Remember the last reference so the tracking form can be prefilled (reference only, never contact details). */

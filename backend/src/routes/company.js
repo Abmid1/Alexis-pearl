@@ -3,12 +3,13 @@ import { db } from '../db.js';
 import { auth, roles, STAFF, MANAGERS } from '../middleware/auth.js';
 import { audit } from '../lib/audit.js';
 import { DEFAULT_HOURS } from '../lib/scheduling.js';
+import { validateForm } from '../lib/applications.js';
 
 /** The signed-in user's company: public website + branding settings. */
 const router = Router();
 router.use(auth, roles(...STAFF));
 
-const PUBLIC_FIELDS = 'id,slug,name,custom_domain,public_enabled,logo_url,brand_color,tagline,about,contact_phone,contact_email,whatsapp,address,office_hours,socials,services,viewing_hours';
+const PUBLIC_FIELDS = 'id,slug,name,custom_domain,public_enabled,logo_url,brand_color,tagline,about,contact_phone,contact_email,whatsapp,address,office_hours,socials,services,viewing_hours,application_form';
 const SERVICES = ['buy', 'rent', 'sell', 'land', 'management', 'valuation'];
 const SOCIALS = ['instagram', 'facebook', 'tiktok', 'x', 'linkedin', 'youtube', 'website'];
 
@@ -50,15 +51,25 @@ router.patch('/', roles(...MANAGERS), async (req, res) => {
       cancel_cutoff_hours: Math.max(0, Math.min(72, Number(h.cancel_cutoff_hours) || 0)),
     };
   }
+  if ('custom_domain' in b) {
+    const d = String(b.custom_domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (req.user.role !== 'owner') errors.push('Only the owner can set a custom domain');
+    else if (d && !/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(d)) errors.push('Enter a domain like www.abcproperties.com');
+    else patch.custom_domain = d || null;
+  }
   if ('slug' in b) {
     if (req.user.role !== 'owner') errors.push('Only the owner can change the website address');
     else if (!/^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$/.test(String(b.slug))) errors.push('Address must be 3–40 lowercase letters, numbers or dashes');
     else if (['app', 'www', 'api', 'admin', 'portal', 'login', 'static', 'assets'].includes(b.slug)) errors.push('That address is reserved');
     else patch.slug = b.slug;
   }
+  if ('application_form' in b) {
+    const { form, errors: fe } = validateForm(b.application_form);
+    if (fe.length) errors.push(...fe); else patch.application_form = form;
+  }
   if (errors.length) return res.status(400).json({ error: errors.join('. ') });
   const { data, error } = await db.from('companies').update(patch).eq('id', req.user.company_id).select(PUBLIC_FIELDS).single();
-  if (error) return res.status(error.code === '23505' ? 409 : 500).json({ error: error.code === '23505' ? 'That website address is taken' : error.message });
+  if (error) return res.status(error.code === '23505' ? 409 : 500).json({ error: error.code === '23505' ? 'That website address or domain is already used by another agency' : error.message });
   await audit(req.user, 'updated', 'company', req.user.company_id, { changes: Object.keys(patch) });
   res.json(data);
 });

@@ -22,12 +22,15 @@ export default function Website() {
   const set = (k: string, v: any) => setC((p: any) => ({ ...p, [k]: v }));
   const hours = c.viewing_hours || { days: [1, 2, 3, 4, 5, 6], start: '09:00', end: '16:00', slot_minutes: 45, min_notice_hours: 24, max_days_ahead: 21, cancel_cutoff_hours: 2 };
   const setH = (k: string, v: any) => set('viewing_hours', { ...hours, [k]: v });
+  const setQ = (i: number, patch: any) => set('application_form', (c.application_form || []).map((q: any, j: number) => (j === i ? { ...q, ...patch } : q)));
   const link = `${origin}/s/${c.slug}`;
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setMsg(null);
     try {
-      const { id, custom_domain, ...body } = c;
+      const { id, ...body } = c;
+      if (user?.role !== 'owner') delete body.custom_domain;
+      body.application_form = (body.application_form || []).filter((q: any) => String(q.label || '').trim());
       if (user?.role !== 'owner') delete body.slug;
       setC(await api.company.update(body));
       setMsg({ ok: true, text: 'Saved — your website is updated.' });
@@ -77,6 +80,7 @@ export default function Website() {
               <input className="form-input" value={c.brand_color || ''} disabled={!isManager} onChange={(e) => set('brand_color', e.target.value)} style={{ maxWidth: 130 }} />
             </div></div>
           {user?.role === 'owner' && field('slug', 'Website address (changing it breaks old links)', { pattern: '[a-z0-9][a-z0-9-]{1,38}[a-z0-9]' })}
+          {user?.role === 'owner' && field('custom_domain', 'Your own domain (optional, e.g. www.abcproperties.com)', { placeholder: 'Needs DNS set up first — see README' })}
         </div>
 
         <div className="card">
@@ -123,6 +127,30 @@ export default function Website() {
           </div>
           <div className="muted">Times are Ghana time (GMT).</div>
         </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="section-title" style={{ marginTop: 0 }}>Application questions</div>
+        <div className="muted" style={{ marginBottom: 10 }}>Customers answer these when they apply for a listing. Ask only what you need — documents are requested per application from the Applications screen.</div>
+        {(c.application_form || []).map((q: any, i: number) => (
+          <div key={i} className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 8, alignItems: 'flex-end' }}>
+            <div className="form-group" style={{ flex: '2 1 220px', marginBottom: 0 }}><label className="form-label">Question {i + 1}</label>
+              <input className="form-input" value={q.label} disabled={!isManager} onChange={(e) => setQ(i, { label: e.target.value })} /></div>
+            <div className="form-group" style={{ flex: '1 1 120px', marginBottom: 0 }}><label className="form-label">Answer type</label>
+              <select className="form-select" value={q.type} disabled={!isManager} onChange={(e) => setQ(i, { type: e.target.value })}>
+                {[['text', 'Short text'], ['textarea', 'Long text'], ['number', 'Number'], ['date', 'Date'], ['yesno', 'Yes / no'], ['select', 'Choice']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select></div>
+            {q.type === 'select' && (
+              <div className="form-group" style={{ flex: '2 1 200px', marginBottom: 0 }}><label className="form-label">Choices (comma-separated)</label>
+                <input className="form-input" value={Array.isArray(q.options) ? q.options.join(', ') : q.options || ''} disabled={!isManager} onChange={(e) => setQ(i, { options: e.target.value })} /></div>
+            )}
+            <label className="row" style={{ gap: 4, fontSize: 12, paddingBottom: 10 }}><input type="checkbox" checked={!!q.required} disabled={!isManager} onChange={(e) => setQ(i, { required: e.target.checked })} /> Required</label>
+            {isManager && <button type="button" className="btn btn-sm btn-red" style={{ marginBottom: 4 }} onClick={() => set('application_form', c.application_form.filter((_: any, j: number) => j !== i))}>Remove</button>}
+          </div>
+        ))}
+        {isManager && (c.application_form || []).length < 25 && (
+          <button type="button" className="btn btn-sm" onClick={() => set('application_form', [...(c.application_form || []), { label: '', type: 'text', required: false }])}>+ Add question</button>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>

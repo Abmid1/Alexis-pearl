@@ -27,6 +27,16 @@ export default function Portal() {
     api.portal.thread().then((t) => setThread(t.messages)).catch(() => {});
   };
   useEffect(() => { if (user) load(); }, [user]);
+  // back from Paystack: the installment updates only after Paystack confirms to our server
+  useEffect(() => {
+    if (!user) return;
+    const q = new URLSearchParams(window.location.search);
+    if (!q.get('reference') && !q.get('trxref')) return;
+    setPaidFlash('Thanks — we are confirming your payment with Paystack. Your balance updates as soon as it is confirmed.');
+    const t = setInterval(load, 5000);
+    const stop = setTimeout(() => { clearInterval(t); setPaidFlash(''); }, 60000);
+    return () => { clearInterval(t); clearTimeout(stop); };
+  }, [user]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread.length, tab]);
 
   const pay = async (instId: string) => {

@@ -48,7 +48,9 @@ router.post('/pay/:installmentId', async (req, res) => {
   if (!inst || inst.plan?.client_id !== client.id) return res.status(404).json({ error: 'Installment not found' });
   if (inst.status === 'paid') return res.status(400).json({ error: 'Already paid' });
 
-  const gateway = await initPayment(client, Number(inst.amount), { installment_id: inst.id });
+  const gateway = await initPayment(client, Number(inst.amount), { installment_id: inst.id, company_id: req.user.company_id, client_id: client.id });
+  if (gateway.mode === 'error') return res.status(502).json({ error: gateway.error });
+  // the installment stays unpaid until Paystack's webhook is verified (see lib/payments.js)
   if (gateway.mode === 'paystack') return res.json({ redirect: gateway.url, reference: gateway.reference });
 
   // simulated gateway (demo only): payment posts immediately. Never in production —

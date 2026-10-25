@@ -4,6 +4,7 @@ import { db } from '../db.js';
 import { handleInbound } from '../lib/inbound.js';
 import { companyBySlug } from '../lib/tenant.js';
 import { rateLimit } from '../middleware/rateLimit.js';
+import { validPaystackSignature, settlePaystackCharge } from '../lib/payments.js';
 
 const router = Router();
 
@@ -62,6 +63,20 @@ router.post('/whatsapp', async (req, res) => {
   } catch (e) {
     console.error('whatsapp webhook:', e.message);
   }
+});
+
+/**
+ * Paystack webhook. Set this URL in the Paystack dashboard:
+ *   https://<backend>/api/webhooks/paystack
+ * Signature checked first; the transaction is then re-verified with Paystack's API.
+ */
+router.post('/paystack', async (req, res) => {
+  if (!validPaystackSignature(req.rawBody, req.get('x-paystack-signature'))) return res.sendStatus(401);
+  const event = req.body?.event;
+  if (event !== 'charge.success') return res.sendStatus(200);       // other events are acknowledged and ignored
+  const result = await settlePaystackCharge(req.body?.data?.reference);
+  if (!result.ok) console.error('paystack webhook not settled:', result.reason);
+  res.sendStatus(200);
 });
 
 /**

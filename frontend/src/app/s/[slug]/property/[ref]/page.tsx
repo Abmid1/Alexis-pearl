@@ -138,6 +138,9 @@ export default async function PropertyPage({ params }: { params: { slug: string;
                 {confirmed && <span className="s-hint">· checked by the agency on {confirmed}</span>}
               </div>
               {p.availability.can_book_viewing && <a className="s-btn s-btn-primary s-btn-block" href="#book"><I name="calendar" size={18} /> Request a viewing</a>}
+              {['available', 'under_offer'].includes(p.availability.code) && (
+                <a className="s-btn s-btn-ghost s-btn-block" href={`${base}/apply/${slugify(p.title)}-${p.id}`}><I name="doc" size={18} /> Apply {p.purpose === 'rent' ? 'to rent' : 'to buy'}</a>
+              )}
               <SaveButton slug={c.slug} id={p.id} title={p.title} variant="button" />
               {p.availability.can_enquire ? (
                 <>

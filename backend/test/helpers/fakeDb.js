@@ -28,14 +28,27 @@ const DEFAULTS = {
   outbox: { status: 'simulated', dedupe_key: null },
   companies: { public_enabled: true, socials: {}, services: ['buy', 'rent'], settings: { commission_rate: 5, rr_cursor: 0 }, viewing_hours: null, custom_domain: null, whatsapp_phone_number_id: null },
   deals: { status: 'draft', commission_rate: 5 },
+  clients: { verified_phone: null, verified_email: null, notification_prefs: { whatsapp: true, email: true }, user_id: null, phone: null, email: null },
+  customer_otps: { attempts: 0, consumed_at: null },
+  applications: { status: 'submitted', answers: {}, requested_documents: [], customer_message: null, staff_note: null, idempotency_key: null },
+  payments: { provider: null, provider_reference: null },
 };
+// migration 002 default questions
+DEFAULTS.companies.application_form = [
+  { key: 'move_in', label: 'When would you like to move in?', type: 'date', required: false },
+  { key: 'occupants', label: 'How many people will live in the property?', type: 'number', required: false },
+];
 
 const NOT_NULL_COMPANY = ['clients', 'leads', 'properties', 'units', 'deals', 'payment_plans', 'payments', 'invoices',
-  'expenses', 'conversations', 'campaigns', 'documents', 'leases', 'tickets', 'report_runs', 'enquiries', 'viewings'];
+  'expenses', 'conversations', 'campaigns', 'documents', 'leases', 'tickets', 'report_runs', 'enquiries', 'viewings',
+  'customer_otps', 'saved_properties', 'applications', 'application_documents'];
 
 const UNIQUE = {
   users: [['email']], companies: [['slug']], enquiries: [['reference'], ['company_id', 'idempotency_key']],
   viewings: [['reference']], outbox: [['dedupe_key']], invoices: [['company_id', 'number']],
+  saved_properties: [['client_id', 'property_id']], applications: [['reference'], ['company_id', 'idempotency_key']],
+  application_documents: [['storage_path']], payments: [['provider', 'provider_reference']],
+  clients: [['company_id', 'verified_phone'], ['company_id', 'verified_email']],
 };
 
 const err = (code, message) => ({ code, message });
@@ -208,9 +221,29 @@ export function createFakeDb() {
     }
   }
 
+  // private storage bucket stand-in: files are only reachable via signed URLs
+  const files = new Map();
+  const storage = {
+    files,
+    from: (bucket) => ({
+      async upload(path, body, opts = {}) {
+        const k = `${bucket}/${path}`;
+        if (files.has(k) && !opts.upsert) return { data: null, error: { message: 'The resource already exists' } };
+        files.set(k, { body: Buffer.from(body), contentType: opts.contentType });
+        return { data: { path }, error: null };
+      },
+      async createSignedUrl(path, seconds) {
+        if (!files.has(`${bucket}/${path}`)) return { data: null, error: { message: 'Object not found' } };
+        return { data: { signedUrl: `https://storage.test/object/sign/${bucket}/${path}?token=${randomUUID()}&expires=${seconds}` }, error: null };
+      },
+      async remove(paths) { paths.forEach((p) => files.delete(`${bucket}/${p}`)); return { data: paths, error: null }; },
+    }),
+  };
+
   return {
     tables,
+    storage,
     from: (t) => new Q(t),
-    reset() { for (const k of Object.keys(tables)) delete tables[k]; },
+    reset() { for (const k of Object.keys(tables)) delete tables[k]; files.clear(); },
   };
 }

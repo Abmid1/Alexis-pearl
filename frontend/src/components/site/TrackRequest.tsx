@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { PUBLIC_API } from '@/lib/publicApi';
 import { I } from '@/components/Icons';
 import { lastRef } from './store';
+import { accountApi, session } from './session';
 
 const TZ = 'Africa/Accra';
 const fmt = (iso: string) => new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ });
@@ -22,6 +23,16 @@ export default function TrackRequest({ slug, companyName, initialRef }: { slug: 
   const [slots, setSlots] = useState<any[]>([]);
 
   useEffect(() => { if (!initialRef) setRef(lastRef.get(slug)); }, [slug, initialRef]);
+
+  // signed-in customers don't retype their contact: use the verified one
+  useEffect(() => {
+    if (!session.get(slug)) return;
+    accountApi(slug, '/me').then((r) => {
+      const c = r.customer.verified_phone || r.customer.verified_email || '';
+      setContact(c);
+      if (c && initialRef) post('/requests/lookup', { reference: initialRef, contact: c }).then(setData).catch(() => {});
+    }).catch(() => {});
+  }, [slug, initialRef]);
 
   const post = async (path: string, body: any) => {
     const r = await fetch(`${PUBLIC_API}/api/public/${slug}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

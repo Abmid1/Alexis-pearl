@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import Layer from 'express/lib/router/layer.js';
+import { rateLimit } from './middleware/rateLimit.js';
+import { companyByDomain } from './lib/tenant.js';
 
 import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
@@ -20,6 +22,7 @@ import publicRoutes from './routes/public.js';
 import viewingRoutes from './routes/viewings.js';
 import enquiryRoutes from './routes/enquiries.js';
 import companyRoutes from './routes/company.js';
+import applicationRoutes from './routes/applications.js';
 
 // Express 4 does not catch rejected promises from async handlers; route them to the
 // error handler instead of leaving the request hanging (same idea as express-async-errors).
@@ -76,10 +79,18 @@ export function createApp() {
   app.use('/api/pm', pmRoutes);
   app.use('/api/portal', portalRoutes);
   app.use('/api/webhooks', webhookRoutes);
+  // custom domains: the frontend middleware asks which agency owns a hostname (slug only, nothing private)
+  app.get('/api/domains/resolve', rateLimit({ name: 'domain-resolve', windowMs: 60000, max: 600 }), async (req, res) => {
+    const c = await companyByDomain(String(req.query.host || ''));
+    res.set('Cache-Control', 'public, max-age=300');
+    if (!c) return res.status(404).json({ error: 'Unknown domain' });
+    res.json({ slug: c.slug });
+  });
   app.use('/api/public/:slug', publicRoutes);
   app.use('/api/viewings', viewingRoutes);
   app.use('/api/enquiries', enquiryRoutes);
   app.use('/api/company', companyRoutes);
+  app.use('/api/applications', applicationRoutes);
   app.use('/api', miscRoutes);
 
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));

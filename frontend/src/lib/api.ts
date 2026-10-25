@@ -126,6 +126,13 @@ export const api = {
     list: (status = 'all') => req(`/api/enquiries?status=${encodeURIComponent(status)}`),
     setStatus: (id: string, status: string) => patch(`/api/enquiries/${id}`, { status }),
   },
+  applications: {
+    list: (status = 'all') => req(`/api/applications?status=${encodeURIComponent(status)}`),
+    get: (id: string) => req(`/api/applications/${id}`),
+    setStatus: (id: string, b: { status: string; message?: string; requested_documents?: string[]; notify?: boolean }) => post(`/api/applications/${id}/status`, b),
+    note: (id: string, staff_note: string) => patch(`/api/applications/${id}`, { staff_note }),
+    documentUrl: (id: string, docId: string) => req(`/api/applications/${id}/documents/${docId}`),
+  },
   company: {
     get: () => req('/api/company'),
     update: (b: any) => patch('/api/company', b),

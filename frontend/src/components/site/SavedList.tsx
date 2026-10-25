@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { PUBLIC_API, PublicProperty, fmtPrice, label, placeLine, propertyPath } from '@/lib/publicApi';
 import PropertyCard from './PropertyCard';
 import { saved } from './store';
+import { accountApi, session } from './session';
 
 /** Saved listings (this device) with a side-by-side comparison of up to 4. */
 export default function SavedList({ slug }: { slug: string }) {
@@ -14,7 +15,16 @@ export default function SavedList({ slug }: { slug: string }) {
       const ids = saved.list(slug);
       const res = await Promise.all(ids.map((id) =>
         fetch(`${PUBLIC_API}/api/public/${slug}/properties/${id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
-      setItems(res.filter(Boolean).map((r: any) => r.property));
+      let list: PublicProperty[] = res.filter(Boolean).map((r: any) => r.property);
+      // signed in: include homes saved from the customer's other devices
+      if (session.get(slug)) {
+        const acc = await accountApi(slug, '/saved').catch(() => null);
+        if (acc?.items) {
+          list = [...list, ...acc.items.filter((p: PublicProperty) => !list.some((x) => x.id === p.id))];
+          saved.merge(slug, acc.items.map((p: PublicProperty) => p.id));   // hearts show as saved here too
+        }
+      }
+      setItems(list);
       setGone(res.filter((r) => !r).length);
     };
     load();

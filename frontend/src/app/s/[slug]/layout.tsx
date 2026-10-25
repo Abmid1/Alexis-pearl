@@ -41,6 +41,7 @@ export default async function SiteLayout({ children, params }: { children: React
     { href: `${base}/properties`, label: 'All listings' },
     { href: `${base}/saved`, label: 'Saved' },
     { href: `${base}/track`, label: 'My requests' },
+    { href: `${base}/account`, label: 'Account' },
     { href: `${base}#contact`, label: 'Contact' },
   ].filter(Boolean) as { href: string; label: string }[];
   const wa = whatsappLink(c.whatsapp, `Hello ${c.name}, I found you online.`);

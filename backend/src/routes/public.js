@@ -9,6 +9,7 @@ import { toPublicViewing } from '../lib/viewings.js';
 import { contactMatches } from '../lib/contacts.js';
 import { audit } from '../lib/audit.js';
 import { assistantReply } from '../lib/assistant.js';
+import accountRoutes from './account.js';
 
 /**
  * Public customer-facing API: /api/public/:slug/…
@@ -30,6 +31,9 @@ router.use(async (req, res, next) => {
   req.tdb = tenantDb(company.id);
   next();
 });
+
+/** Customer accounts (sign-in by code, saved homes, applications, documents). */
+router.use('/account', accountRoutes);
 
 // public reads may be cached briefly (URL contains the slug, so caches never mix companies);
 // anything personal is marked no-store.
