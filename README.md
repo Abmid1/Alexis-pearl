@@ -30,7 +30,7 @@ copy .env.example .env     # fill in SUPABASE_URL, SUPABASE_SERVICE_KEY, JWT_SEC
 npm install
 npm run seed               # demo data for two agencies (fresh database only)
 npm run dev                # http://localhost:5000
-npm test                   # 68 tests, no database needed
+npm test                   # 73 tests, no database needed
 npm run dev:memory         # optional: whole backend on an in-memory demo database, no Supabase
 ```
 
@@ -87,6 +87,14 @@ Staff set availability in Marketing. Every change, plus a "Still accurate" butto
 - **Applications** use questions each agency sets in **Website → Application questions**. Staff manage them in **Applications**: review, ask for information and specific documents, approve or decline, and add internal notes. Only owners and admins can approve or decline. Each application also lands in the Inbox and on the lead.
 - **Documents** are limited to PDF, JPG, PNG and WebP up to 8 MB. The type is checked from the file's actual bytes, not its name. Files go to the private Supabase bucket `application-documents` and are only reachable through download links that expire after 60 seconds. Every view by staff or customer is logged in the audit log.
 
+## Existing tenants
+A customer whose phone or email matches a client an agency has given a lease sees a **My tenancy** tab after signing in:
+- Their lease, rent amount, next payment date (anchored to the tenancy start day), balance this month and renewal countdown.
+- Rent payment history, from payments staff have recorded.
+- **Report a problem**, which creates a maintenance ticket on their leased property. It appears in the staff Property Management screen, unassigned, and status changes there show back to the tenant.
+
+Rent figures are derived from recorded payments, not a separate schedule, and are labelled that way. There is no online rent payment for leases yet.
+
 ## Payments (Paystack)
 - An installment is marked paid only after Paystack's signed webhook arrives **and** the backend re-checks the transaction with Paystack. The check covers amount, currency, company and installment. A redirect alone never counts.
 - Set the webhook URL in the Paystack dashboard to `https://<backend>/api/webhooks/paystack`.
@@ -141,7 +149,7 @@ The stand-in is not Postgres. RLS, the exclusion constraints and the migration i
 - **Uploaded documents are not scanned for malware.** The format allow-list limits the risk. Add a scanning service before scaling.
 - **Rate limits are per server instance**, held in memory. Use Redis or Upstash if you run several instances.
 - **Property photos are URLs.** There is no upload yet.
-- **Not built:** offers, transaction milestones, tenant maintenance requests on the website, and landlord property submission. The applications model is the pattern for adding them.
+- **Not built:** offers and transaction milestones, landlord property submission, document-request services (e.g. requesting an NOC or clearance certificate), and online rent payment for leases. The applications and tenancy modules are the pattern for adding them.
 
 ## Cron (runs inside the backend, Africa/Accra time)
 - Daily 8am: WhatsApp payment reminders per company (de-duplicated), plus the overdue sweep

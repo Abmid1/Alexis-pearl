@@ -80,6 +80,12 @@ export async function seed() {
   const aLead = await ins('leads', { company_id: A.id, name: 'Kwabena Osei', phone: '+233205555555', email: 'kwabena@example.com', source: 'WhatsApp', owner_id: aAgent1.id, stage: 'contacted' });
   const bLead = await ins('leads', { company_id: B.id, name: 'Akua B', phone: '+233209999999', source: 'Walk-in', owner_id: bAgent.id });
   const aClient = await ins('clients', { company_id: A.id, name: 'Nana Adjei', phone: '+233201111111' });
+  // an existing tenant of company A (lease + a rent payment + a maintenance ticket)
+  const aTenant = await ins('clients', { company_id: A.id, name: 'Abena Sarpong', phone: '+233204444444', email: 'abena@example.com' });
+  const aLease = await ins('leases', { company_id: A.id, property_id: aOsu.id, client_id: aTenant.id, rent_amount: 4500, start_date: '2025-06-10', end_date: new Date(Date.now() + 40 * 86400000).toISOString().slice(0, 10), status: 'active' });
+  await ins('payments', { company_id: A.id, lease_id: aLease.id, client_id: aTenant.id, amount: 4500, method: 'momo', status: 'approved', created_at: new Date(Date.now() - 20 * 86400000).toISOString() });
+  const aTicket = await ins('tickets', { company_id: A.id, property_id: aOsu.id, client_id: aTenant.id, title: 'Leaking tap', description: 'Kitchen tap drips', status: 'in_progress', owner_id: aOwner.id });
+  const bLease = await ins('leases', { company_id: B.id, property_id: bEastLegon.id, client_id: (await ins('clients', { company_id: B.id, name: 'B Tenant', phone: '+233208887777' })).id, rent_amount: 5000, start_date: '2025-01-01', end_date: '2026-12-31', status: 'active' });
 
   await ins('documents', { company_id: A.id, title: 'Rental application requirements', category: 'faq', is_public: true, content_text: 'To apply for a rental you need a Ghana Card, proof of income and two years rent advance. Reservation fee is GHS 5,000.' });
   await ins('documents', { company_id: A.id, title: 'Internal commission SOP', category: 'sop', is_public: false, content_text: 'Agents receive 60 percent commission split on rental applications. Secret internal.' });
@@ -92,6 +98,7 @@ export async function seed() {
   const tok = (u) => signToken(u);
   return {
     A, B, aOwner, aAgent1, aAgent2, bOwner, bAgent, aEastLegon, aOsu, aDraft, aSold, aArchived, bEastLegon, aLead, bLead, aClient, conv, draft,
+    aTenant, aLease, aTicket, bLease,
     t: { aOwner: tok(aOwner), aAgent1: tok(aAgent1), aAgent2: tok(aAgent2), bOwner: tok(bOwner), bAgent: tok(bAgent) },
   };
 }

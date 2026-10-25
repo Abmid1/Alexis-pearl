@@ -10,6 +10,7 @@ import { hoursFor, withinCustomerCutoff } from '../lib/scheduling.js';
 import { validateAnswers, toPublicApplication, OPEN_STATUSES, CUSTOMER_UPLOAD_STATUSES } from '../lib/applications.js';
 import { readUpload, storePrivate, signedUrl, removePrivate, FileError } from '../lib/files.js';
 import { audit } from '../lib/audit.js';
+import { toPublicLease, toPublicRentPayment, toPublicTicket, validateMaintenance } from '../lib/tenancy.js';
 
 /**
  * Customer accounts on the public agency site: /api/public/:slug/account/…
@@ -20,6 +21,7 @@ const router = Router({ mergeParams: true });
 const codeLimit = rateLimit({ name: 'otp-request', windowMs: 15 * 60000, max: 8 });
 const verifyLimit = rateLimit({ name: 'otp-verify', windowMs: 15 * 60000, max: 20 });
 const uploadLimit = rateLimit({ name: 'doc-upload', windowMs: 60 * 60000, max: 30 });
+const maintLimit = rateLimit({ name: 'maintenance', windowMs: 60 * 60000, max: 20 });
 
 router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
@@ -83,10 +85,11 @@ async function propsById(req, ids) {
 router.get('/overview', async (req, res) => {
   const enquiries = await myEnquiries(req);
   const ids = enquiries.map((e) => e.id);
-  const [{ data: views }, { data: apps }, saved] = await Promise.all([
+  const [{ data: views }, { data: apps }, saved, leaseCount] = await Promise.all([
     ids.length ? req.tdb.from('viewings').select('*').in('enquiry_id', ids).order('starts_at') : { data: [] },
     req.tdb.from('applications').select('*').eq('client_id', req.client.id).order('created_at', { ascending: false }),
     savedList(req),
+    req.tdb.from('leases').select('id', { count: 'exact', head: true }).eq('client_id', req.client.id),
   ]);
   const props = await propsById(req, [...enquiries.map((e) => e.property_id), ...(apps || []).map((a) => a.property_id)]);
   const pub = (id) => { const p = props.get(id); return p ? { id: isPublic(p) ? p.id : null, title: p.title } : null; };
@@ -102,6 +105,7 @@ router.get('/overview', async (req, res) => {
     })),
     applications: (apps || []).map((a) => toPublicApplication(a, { property: pub(a.property_id) })),
     saved,
+    has_tenancy: (leaseCount.count || 0) > 0,
   });
 });
 
@@ -246,6 +250,53 @@ router.post('/applications/:id/withdraw', async (req, res) => {
   await threadNote(req, a, `Customer withdrew application ${a.reference}.`);
   await audit({ id: null, name: req.client.name, company_id: req.company.id }, 'application_withdrawn', 'application', a.id, { reference: a.reference });
   res.json({ application: toPublicApplication(data) });
+});
+
+// ── existing tenants: rent + maintenance (built on staff-managed leases/tickets) ──
+async function myLeases(req) {
+  const { data } = await req.tdb.from('leases')
+    .select('*, property:property_id(title,location), unit:unit_id(name)')
+    .eq('client_id', req.client.id).order('end_date', { ascending: false });
+  return data || [];
+}
+
+router.get('/tenancy', async (req, res) => {
+  const now = new Date();
+  const leases = await myLeases(req);
+  const [{ data: payments }, { data: tickets }] = await Promise.all([
+    req.tdb.from('payments').select('*').eq('client_id', req.client.id).not('lease_id', 'is', null).eq('status', 'approved').order('created_at', { ascending: false }),
+    req.tdb.from('tickets').select('*, property:property_id(title), unit:unit_id(name)').eq('client_id', req.client.id).order('created_at', { ascending: false }),
+  ]);
+  res.json({
+    leases: leases.map((l) => toPublicLease(l, { payments: payments || [], now })),
+    payments: (payments || []).map(toPublicRentPayment),
+    maintenance: (tickets || []).map(toPublicTicket),
+  });
+});
+
+/** Report a maintenance problem → creates a ticket on a property the customer actually leases. */
+router.post('/maintenance', maintLimit, async (req, res) => {
+  try {
+    const { errors, value } = validateMaintenance(req.body || {});
+    if (errors.length) return res.status(400).json({ error: errors.join('. ') });
+    const leases = await myLeases(req);
+    const active = leases.filter((l) => l.status !== 'ended');
+    if (!active.length) return res.status(409).json({ error: 'You have no active tenancy to report maintenance for.' });
+    let lease = active[0];
+    if (req.body?.lease_id) {
+      lease = active.find((l) => l.id === req.body.lease_id);
+      if (!lease) return res.status(404).json({ error: 'Tenancy not found' });
+    }
+    const { count } = await req.tdb.from('tickets').select('id', { count: 'exact', head: true }).eq('client_id', req.client.id).eq('status', 'open');
+    if ((count || 0) >= 20) return res.status(409).json({ error: 'You already have several open requests. Please wait for the agency to respond.' });
+    const { data: ticket, error } = await req.tdb.from('tickets').insert({
+      property_id: lease.property_id, unit_id: lease.unit_id, client_id: req.client.id,
+      title: value.title, description: value.description, status: 'open',   // owner_id null until staff assign
+    }).select('*, property:property_id(title), unit:unit_id(name)').single();
+    if (error) throw new Error(error.message);
+    await audit({ id: null, name: req.client.name, company_id: req.company.id }, 'maintenance_reported', 'ticket', ticket.id, { title: value.title, property: lease.property?.title });
+    res.status(201).json({ ticket: toPublicTicket(ticket) });
+  } catch (e) { fail(res, e); }
 });
 
 export default router;

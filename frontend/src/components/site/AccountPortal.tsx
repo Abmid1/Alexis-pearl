@@ -11,7 +11,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleString('en-GB', { weekday: 's
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: TZ });
 const tone = (s: string) => (['confirmed', 'completed', 'approved'].includes(s) ? '' : ['requested', 'submitted', 'under_review', 'info_requested', 'new', 'in_progress'].includes(s) ? 'warn' : 'bad');
 
-type Tab = 'requests' | 'applications' | 'saved' | 'settings';
+type Tab = 'requests' | 'applications' | 'saved' | 'tenancy' | 'settings';
 
 /** Signed-in customer's portal for one agency. */
 export default function AccountPortal({ slug, companyName }: { slug: string; companyName: string }) {
@@ -29,7 +29,7 @@ export default function AccountPortal({ slug, companyName }: { slug: string; com
 
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab') as Tab | null;
-    if (t && ['requests', 'applications', 'saved', 'settings'].includes(t)) setTab(t);
+    if (t && ['requests', 'applications', 'saved', 'tenancy', 'settings'].includes(t)) setTab(t);
     if (!session.get(slug)) { setSignedIn(false); return; }
     load();
   }, [slug, load]);
@@ -50,6 +50,7 @@ export default function AccountPortal({ slug, companyName }: { slug: string; com
     ['requests', 'Requests & viewings', data.enquiries.length],
     ['applications', 'Applications', data.applications.length],
     ['saved', 'Saved homes', data.saved.length],
+    ...(data.has_tenancy ? [['tenancy', 'My tenancy'] as [Tab, string]] : []),
     ['settings', 'Settings'],
   ];
 
@@ -113,6 +114,8 @@ export default function AccountPortal({ slug, companyName }: { slug: string; com
         ? <div className="s-grid">{data.saved.map((p: any) => <PropertyCard key={p.id} slug={slug} p={p} />)}</div>
         : <Empty slug={slug} text="Tap the heart on any listing to save it to your account." />)}
 
+      {tab === 'tenancy' && <Tenancy slug={slug} companyName={companyName} onError={setErr} />}
+
       {tab === 'settings' && <Settings slug={slug} customer={c} onSaved={(t) => { setMsg(t); load(); setTimeout(() => setMsg(''), 3000); }} onError={setErr} />}
     </div>
   );
@@ -121,6 +124,82 @@ export default function AccountPortal({ slug, companyName }: { slug: string; com
 function Empty({ slug, text }: { slug: string; text: string }) {
   return (
     <div className="s-empty"><p>{text}</p><a className="s-btn s-btn-primary" href={`/s/${slug}/properties`}>Browse listings</a></div>
+  );
+}
+
+function Tenancy({ slug, companyName, onError }: { slug: string; companyName: string; onError: (t: string) => void }) {
+  const [t, setT] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ title: '', description: '' });
+  const load = () => accountApi(slug, '/tenancy').then(setT).catch((e: any) => onError(e.message));
+  useEffect(() => { load(); }, [slug]);
+  if (!t) return <p className="s-hint">Loading your tenancy…</p>;
+
+  const money = (n: number) => `GHS ${Number(n || 0).toLocaleString('en-GH', { maximumFractionDigits: 0 })}`;
+  const date = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Accra' });
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setBusy(true);
+    try { await accountApi(slug, '/maintenance', { method: 'POST', body: form }); setForm({ title: '', description: '' }); setOpen(false); await load(); }
+    catch (e: any) { onError(e.message); } finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: 18 }}>
+      {t.leases.map((l: any) => (
+        <div key={l.id} className="s-panel" style={{ display: 'grid', gap: 14 }}>
+          <div className="spread" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div><div style={{ fontWeight: 650, fontSize: 18 }}>{l.property?.title || 'Your home'}</div>{l.unit && <div className="s-hint">{l.unit}</div>}</div>
+            <span className={`s-badge ${l.in_arrears ? 's-badge-bad' : 's-badge-ok'}`}>{l.in_arrears ? 'Rent due' : 'Up to date'}</span>
+          </div>
+          <div className="s-specs" style={{ margin: 0 }}>
+            <div><dt>Rent</dt><dd>{money(l.rent_amount)}<small style={{ fontWeight: 400 }}> / month</small></dd></div>
+            <div><dt>Next payment</dt><dd>{l.next_due_date ? date(l.next_due_date) : '—'}</dd></div>
+            <div><dt>Balance this month</dt><dd>{money(l.balance_this_month)}</dd></div>
+            <div><dt>Tenancy ends</dt><dd>{l.end_date ? date(l.end_date) : '—'}</dd></div>
+          </div>
+          {l.renewal_due && <div className="s-note">Your tenancy ends in {l.days_to_end} days. {companyName} may contact you about renewing.</div>}
+          {l.last_payment && <div className="s-hint">Last payment: {money(l.last_payment.amount)} by {l.last_payment.method} on {date(l.last_payment.date)}.</div>}
+          <p className="s-hint" style={{ fontSize: 13 }}>Rent figures are based on payments {companyName} has recorded. Check with the agency if anything looks wrong.</p>
+        </div>
+      ))}
+
+      <div className="s-panel">
+        <div className="spread" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h2 style={{ fontSize: 18 }}>Maintenance</h2>
+          <button className="s-btn s-btn-primary s-btn-sm" onClick={() => setOpen((v) => !v)}><I name="tool" size={16} /> Report a problem</button>
+        </div>
+        {open && (
+          <form onSubmit={submit} style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
+            <label className="s-field" style={{ margin: 0 }}><span>What's wrong?</span><input className="s-input" required minLength={3} maxLength={200} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Leaking kitchen tap" /></label>
+            <label className="s-field" style={{ margin: 0 }}><span>Details</span><textarea className="s-textarea" required minLength={5} maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="When did it start? Where exactly?" /></label>
+            <button className="s-btn s-btn-primary" disabled={busy} style={{ justifySelf: 'start' }}>{busy ? 'Sending…' : 'Send request'}</button>
+          </form>
+        )}
+        {t.maintenance.length ? (
+          <div className="s-timeline">
+            {t.maintenance.map((m: any) => (
+              <div key={m.id} className="s-note" style={{ display: 'grid', gap: 4 }}>
+                <div className="spread" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><b>{m.title}</b><span className="s-hint">{date(m.created_at)}</span></div>
+                {m.description && <span>{m.description}</span>}
+                <div className="s-status"><span className={`s-dot ${m.status === 'resolved' ? '' : 'warn'}`} /> {m.status_label} — {m.next_step}</div>
+              </div>
+            ))}
+          </div>
+        ) : <p className="s-hint">No maintenance requests yet.</p>}
+      </div>
+
+      {t.payments.length > 0 && (
+        <div className="s-panel">
+          <h2 style={{ fontSize: 18, marginBottom: 12 }}>Payment history</h2>
+          <div className="s-contact-list">
+            {t.payments.map((p: any) => (
+              <div key={p.id} style={{ justifyContent: 'space-between' }}><span>{date(p.date)} · {p.method}</span><b>{money(p.amount)}</b></div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -32,6 +32,8 @@ const DEFAULTS = {
   customer_otps: { attempts: 0, consumed_at: null },
   applications: { status: 'submitted', answers: {}, requested_documents: [], customer_message: null, staff_note: null, idempotency_key: null },
   payments: { provider: null, provider_reference: null },
+  leases: { status: 'active', unit_id: null },
+  tickets: { status: 'open', description: null, owner_id: null, unit_id: null, client_id: null, property_id: null },
 };
 // migration 002 default questions
 DEFAULTS.companies.application_form = [
